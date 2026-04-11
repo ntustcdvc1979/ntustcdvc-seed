@@ -20,31 +20,51 @@ export function Quadrant({ title, motto, icon, colorType, children }) {
   );
 }
 
-export function SkillCircle({ name, count, onClick, img, colorType }) {
+export function SkillCircle({ name, count, onClick, onDecrement, img, colorType }) {
   const shadowColor = colorType === 'green' ? '#a5bc28' : '#d4a017';
   const badgeColor = colorType === 'green' ? 'bg-[#bad32d]' : 'bg-[#f5be30]';
+  const labelBaseClass = "absolute w-6 h-6 rounded-full flex items-center justify-center font-black border-2 border-[#1a1a1a] shadow-sm text-[10px] transition-all duration-200";
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <button 
-        onClick={onClick} 
-        style={{ boxShadow: `4px 4px 0px 0px ${shadowColor}` }}
-        className="w-16 h-16 rounded-full border-4 border-[#1a1a1a] bg-white flex items-center justify-center text-2xl active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all relative"
-      >
-        {img}
-        <span className={`absolute -top-2 -right-2 ${badgeColor} text-white text-[10px] w-6 h-6 rounded-full flex items-center justify-center font-black border-2 border-white`}>
+    <div className="flex flex-col items-center gap-2 group">
+      <div className="relative">
+        <button 
+          onClick={onClick} 
+          style={{ boxShadow: `4px 4px 0px 0px ${shadowColor}` }}
+          className="w-16 h-16 rounded-full border-4 border-[#1a1a1a] bg-white flex items-center justify-center text-2xl active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all relative"
+        >
+          {img}
+        </button>
+
+        {/* 右上角次數 */}
+        <div className={`${labelBaseClass} -top-2 -right-2 ${badgeColor} text-white`} >
           {count || 0}
+        </div>
+
+        {/* 左上角負號按鈕 (小紅圈) */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation(); 
+            onDecrement();
+          }}
+          className={`
+            ${labelBaseClass} -top-2 -left-2 bg-red-500 text-white z-20 active:scale-75
+            ${count > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-0 pointer-events-none'}
+          `}
+        >
+          －
+        </button>
+
+        <span 
+          className="text-[11px] font-black leading-tight text-center break-words"
+          style={{ 
+            maxWidth: '64px', // 約 5 個中文字的寬度
+            wordBreak: 'break-all' 
+          }}
+        >
+          {name}
         </span>
-      </button>
-      <span 
-        className="text-[11px] font-black leading-tight text-center break-words"
-        style={{ 
-          maxWidth: '64px', // 約 5 個中文字的寬度
-          wordBreak: 'break-all' 
-        }}
-      >
-        {name}
-      </span>
+      </div>
     </div>
   );
 }

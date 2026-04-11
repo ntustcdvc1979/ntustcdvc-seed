@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, provider } from './firebase-config';
-import { signInWithPopup, signOut } from 'firebase/auth';
+import { signInWithPopup, signOut, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs } from 'firebase/firestore';
 
 import DailyQuote from './components/DailyQuote'
 import EventModal from './components/EventModal';
 import Badge from './components/Badge';
 import SkillTree from './components/SkillTree';
+import CollectionModal from './components/CollectionModal'
 import { getTitleConfig } from './utils/gameLogic';
 import { Logos } from './assets/AssetManager';
 import { theme } from './styles/theme';
@@ -17,6 +18,8 @@ function App() {
   const [showEvents, setShowEvents] = useState(false);
   const [currentQuote, setCurrentQuote] = useState(null);
   const [events, setEvents] = useState([]);
+  const [showCollection, setShowCollection] = useState(false);
+  const [allQuotes, setAllQuotes] = useState([]);
 
   // 取得稱號配置
   const titleConfig = getTitleConfig(userData);
@@ -33,9 +36,9 @@ function App() {
 
     const defaultStats = { 
       頌經: 0, 抄寫經典: 0, 參與研究班: 0, 研讀聖訓經典: 0,
-      覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
+      覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 整理環境: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
       推薦朋友: 0, 分享好文: 0, 關心成全一個人: 0, 分享道在日常: 0,
-      開伙幫廚: 0, 整理環境: 0, 蔬食一餐: 0, 壇務工作: 0, 淨灘山志工: 0, 參與營隊志工: 0, 參與獻供: 0, 法會實務: 0, 渡一個人: 0
+      開伙幫廚: 0, 蔬食一餐: 0, 壇務工作: 0, 淨灘山志工: 0, 參與營隊志工: 0, 參與獻供: 0, 法會實務: 0, 渡一個人: 0
     };
 
     if (docSnap.exists()) {
@@ -63,21 +66,68 @@ function App() {
   };
 
   useEffect(() => {
+    // A. 處理 Redirect 登入結果
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          fetchUserData(result.user.uid);
+        }
+      })
+      .catch((err) => console.error("Redirect Error:", err));
+
+    // B. 監聽登入狀態切換
     const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (u) { setUser(u); fetchUserData(u.uid); }
-      else { setUser(null); setUserData(null); }
+      if (u) {
+        setUser(u);
+        fetchUserData(u.uid);
+      } else {
+        setUser(null);
+        setUserData(null);
+      }
     });
+
+    // C. 抓取所有慈語 (只需執行一次)
+    const fetchQuotes = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'daily_quotes'));
+        setAllQuotes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.error("Fetch Quotes Error:", err);
+      }
+    };
+    
+    fetchQuotes();
+
     return () => unsubscribe();
   }, []);
 
+  const handleLogin = () => {
+    // 簡單判斷：如果是手機或平板，使用 Redirect
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      signInWithRedirect(auth, provider);
+    } else {
+      signInWithPopup(auth, provider).catch((error) => {
+        // 如果 Popup 失敗（被阻擋），降級使用 Redirect
+        if (error.code === 'auth/popup-blocked') {
+          signInWithRedirect(auth, provider);
+        }
+      });
+    }
+  };
+
   const drawCard = async () => {
-    const snapshot = await getDocs(collection(db, 'daily_quotes'));
-    const quotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    const filtered = quotes.filter(item => userData.isTaoQin ? true : item.type === 'non_Taoqin');
+    if (allQuotes.length === 0) return;
+    const filtered = allQuotes.filter(item => userData.isTaoQin ? true : item.type === 'non_Taoqin');
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
     setCurrentQuote(randomQuote);
 
     const userRef = doc(db, 'users', user.uid);
+    // 更新本地與 Firebase
+    const newCollection = Array.from(new Set([...userData.collection, randomQuote.id]));
+    setUserData({ ...userData, collection: newCollection });
+    
     await updateDoc(userRef, { 
       collection: arrayUnion(randomQuote.id), 
       lastCheckIn: new Date().toLocaleDateString() 
@@ -103,6 +153,20 @@ function App() {
     });
   };
 
+  const decrementSkill = (skill) => {
+    if (!userData) return;
+
+    const currentCount = (userData.stats && userData.stats[skill]) ? userData.stats[skill] : 0;
+    if (currentCount <= 0) return; // 防止變負數
+
+    const newCount = currentCount - 1;
+    const userRef = doc(db, 'users', user.uid);
+
+    // 更新本地與資料庫
+    setUserData({ ...userData, stats: { ...userData.stats, [skill]: newCount } });
+    updateDoc(userRef, { [`stats.${skill}`]: newCount });
+  };
+
   if (!user) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white">
       <div className="flex items-center gap-4 mb-4">
@@ -110,7 +174,7 @@ function App() {
         <img src={Logos.Small} alt="Small Logo" className="h-12 object-contain" />
       </div>
       <h1 className="text-4xl font-black mb-8 text-black" style={{ color: '#000000' }}>🌱 崇德心靈種子</h1>
-      <button onClick={() => signInWithPopup(auth, provider)} className="bg-black text-white px-12 py-4 rounded-full font-bold">開啟探索</button>
+      <button onClick={handleLogin} className="bg-black text-white px-12 py-4 rounded-full font-bold">開啟探索</button>
     </div>
   );
 
@@ -147,12 +211,26 @@ function App() {
         </header>
 
         {/* 慈語抽卡 */}
-        <DailyQuote currentQuote={currentQuote} onDraw={drawCard} />
+        <DailyQuote
+          currentQuote={currentQuote}
+          onDraw={drawCard} 
+          onOpenCollection={() => setShowCollection(true)}
+        />
+
+        {/* 收藏視窗 */}
+        {showCollection && (
+          <CollectionModal 
+            collection={userData.collection} 
+            allQuotes={allQuotes} 
+            onClose={() => setShowCollection(false)} 
+          />
+        )}
 
         {/* 技能樹 */}
         <SkillTree 
           userData={userData} 
-          incrementSkill={incrementSkill} 
+          incrementSkill={incrementSkill}
+          decrementSkill={decrementSkill}
         />
 
         {/* 活動快訊按鈕 */}
