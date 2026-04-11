@@ -9,7 +9,8 @@ import DailyQuote from './components/DailyQuote'
 import EventModal from './components/EventModal';
 import Badge from './components/Badge';
 import SkillTree from './components/SkillTree';
-import CollectionModal from './components/CollectionModal'
+import CollectionModal from './components/CollectionModal';
+import AchievementList from './components/AchievementList';
 import { getTitleConfig } from './utils/gameLogic';
 import { Logos } from './assets/AssetManager';
 import { theme } from './styles/theme';
@@ -26,6 +27,7 @@ function App() {
   const hasInitializedBadges = useRef(false); // 標記是否已完成初次加載
   const prevBadgeNamesRef = useRef([]); // 紀錄上一次滿足條件的勳章清單
   const [loading, setLoading] = useState(true);
+  const [showAchievementList, setShowAchievementList] = useState(false);
 
   // 取得稱號配置
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
@@ -72,7 +74,7 @@ function App() {
       const initial = {
         name: currentUser?.displayName || "未知用戶",
         email: currentUser?.email || "無信箱資訊",
-        isTaoQin: false,
+        isTaoQin: true, // 第一階段僅開放道親使用
         stats: defaultStats,
         collection: [],
         badges: [],
@@ -305,6 +307,14 @@ function App() {
           {userData?.isTaoQin && <div className="text-5xl">🌱</div>}
         </header>
 
+        {showAchievementList && (
+          <AchievementList 
+            titleConfig={titleConfig} 
+            earnedBadges={userData.badges || []} 
+            onClose={() => setShowAchievementList(false)} 
+          />
+        )}
+
         {/* 慈語抽卡 */}
         <DailyQuote
           currentQuote={currentQuote}
@@ -327,11 +337,26 @@ function App() {
           incrementSkill={incrementSkill}
           decrementSkill={decrementSkill}
         />
+        
+        {/* 成就清單按鈕 */}
+        <button 
+          onClick={() => setShowAchievementList(true)} 
+          style={{ 
+            backgroundColor: theme.yellow, // 使用黃色與綠色按鈕做區隔
+            boxShadow: `0 8px 0px 0px #d4a017`, // 深黃色陰影
+          }}
+          className="w-full mt-12 text-white py-6 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
+        >
+          🏆 成就清單
+        </button>
 
         {/* 活動快訊按鈕 */}
         <button 
           onClick={openEventModal} 
-          style={{ backgroundColor: theme.green, boxShadow: `0 8px 0px 0px #a5bc28` }}
+          style={{
+            backgroundColor: theme.green,
+            boxShadow: `0 8px 0px 0px #a5bc28`,
+          }}
           className="w-full mt-12 text-white py-6 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
         >
           📅 活動快訊
