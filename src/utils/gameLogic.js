@@ -40,7 +40,7 @@ export const getTitleConfig = (userData) => [
   },
   {
     name: "草食動物",
-    requirement: () => (userData?.stats?.蔬食一餐 >= 5),
+    requirement: () => (userData?.stats?.蔬食一餐 >= 7),
     description: "慈悲從餐桌開始。愛護生命，讓身體更清淨，心靈更安詳。"
   },
   {
