@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { BadgeImages } from '../assets/AssetManager';
 import { theme } from '../styles/theme';
 
-// 接收 title 物件，裡面包含 name 和 description
 export default function Badge({ badgeData }) {
   const [isZoomed, setIsZoomed] = useState(false);
   const { name, description } = badgeData;
@@ -14,22 +13,24 @@ export default function Badge({ badgeData }) {
         onClick={() => setIsZoomed(true)}
         className="flex flex-col items-center group cursor-pointer active:scale-95 transition-all"
       >
-        <div className="w-20 h-20 flex items-center justify-center">
+        {/* 成就圖 */}
+        <div className="w-24 h-24 flex items-center justify-center">
           {imgSrc ? (
             <img 
               src={imgSrc} 
               alt={name} 
-              className="w-full h-full object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]" 
+              className="w-full h-full object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.4)]" 
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-black border-4 border-white flex items-center justify-center">
-              <span className="text-[10px] text-white font-black">{name}</span>
+            <div className="w-20 h-20 rounded-full bg-black border-4 border-white flex items-center justify-center shadow-lg">
+              <span className="text-[12px] text-white font-black text-center px-1">{name}</span>
             </div>
           )}
         </div>
 
+        {/* 名稱標籤 */}
         <div 
-          className="mt-1 text-[13px] font-black px-3 py-1 rounded shadow-sm border border-white transform -rotate-1"
+          className="mt-2 text-[15px] font-black px-4 py-1.5 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] border-2 border-white transform -rotate-1 group-hover:rotate-0 transition-transform"
           style={{ backgroundColor: theme.green, color: '#fff' }}
         >
           {name}

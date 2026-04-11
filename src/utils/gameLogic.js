@@ -18,6 +18,13 @@ export const getTitleConfig = (userData) => [
     goal: "累計參與研究班達10次",
     isHidden: false, // 一般成就
   },
+  {
+    name: "草食動物",
+    requirement: () => (userData?.stats?.蔬食一餐 >= 7),
+    description: "慈悲從餐桌開始。愛護生命，讓身體更清淨，心靈更安詳。",
+    goal: "累計蔬食一餐達7次",
+    isHidden: false, // 一般成就
+  },
   { 
     name: "誠心抱守", 
     requirement: () => (userData?.stats?.一千叩首 >= 7),
@@ -35,7 +42,7 @@ export const getTitleConfig = (userData) => [
   { 
     name: "廣結善緣", 
     requirement: () => (userData?.stats?.分享好文 >= 20),
-    description: "一燈能除千年暗，一語能結萬世緣。感謝你將智慧的種子播撒給更多人。🕊️",
+    description: "一燈能除千年暗，一智能滅萬年愚。感謝你將智慧的種子播撒給更多人。🕊️",
     goal: "累計分享好文達20次",
     isHidden: false, // 一般成就
   },
@@ -49,15 +56,8 @@ export const getTitleConfig = (userData) => [
   {
     name: "特級廚師",
     requirement: () => (userData?.stats?.開伙幫廚 >= 10),
-    description: "莫忘六祖慧能大師亦是從炊事組劈柴舂米、躬身磨練開始。每一份菜餚，皆是成全眾生的慈悲。",
+    description: "莫忘六祖慧能大師亦是從炊事組劈柴舂米、躬身磨練開始。每一道菜餚，皆是成全眾生的慈悲。",
     goal: "累計開伙幫廚達10次",
-    isHidden: false, // 一般成就
-  },
-  {
-    name: "草食動物",
-    requirement: () => (userData?.stats?.蔬食一餐 >= 7),
-    description: "慈悲從餐桌開始。愛護生命，讓身體更清淨，心靈更安詳。",
-    goal: "累計蔬食一餐達7次",
     isHidden: false, // 一般成就
   },
   { 

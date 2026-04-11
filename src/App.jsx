@@ -47,9 +47,9 @@ function App() {
 
     const defaultStats = { 
       頌經: 0, 抄寫經典: 0, 參與研究班: 0, 研讀聖訓經典: 0,
-      覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 整理環境: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
+      蔬食一餐: 0, 覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 整理環境: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
       推薦朋友: 0, 分享好文: 0, 關心成全一個人: 0, 分享道在日常: 0,
-      開伙幫廚: 0, 蔬食一餐: 0, 壇務工作: 0, 淨灘山志工: 0, 參與營隊志工: 0, 參與獻供: 0, 法會實務: 0, 渡一個人: 0
+      開伙幫廚: 0, 壇務工作: 0, 淨灘山志工: 0, 參與營隊志工: 0, 參與獻供: 0, 法會實務: 0, 渡一個人: 0
     };
 
     if (docSnap.exists()) {
@@ -213,7 +213,8 @@ function App() {
 
     const userRef = doc(db, 'users', user.uid);
     // 更新本地與 Firebase
-    const newCollection = Array.from(new Set([...userData.collection, randomQuote.id]));
+    const currentCollection = userData.collection || [];
+    const newCollection = Array.from(new Set([...currentCollection, randomQuote.id]));
     setUserData({ ...userData, collection: newCollection });
     
     await updateDoc(userRef, { 
@@ -295,8 +296,10 @@ function App() {
               你好，{user.displayName}
             </p>
             
+            {userData?.isTaoQin && <div className="text-2xl">🌱</div>}
+
             {/* 勳章 */}
-            <div className="flex flex-wrap gap-5 mt-2">
+            <div className="flex flex-wrap gap-5 mt-4 justify-center w-full">
               {titleConfig
                 .filter((t) => userData?.badges?.includes(t.name)) // 核心修改：改為判斷是否在收藏清單中
                 .map((t) => (
@@ -304,7 +307,6 @@ function App() {
                 ))}
             </div>
           </div>
-          {userData?.isTaoQin && <div className="text-5xl">🌱</div>}
         </header>
 
         {showAchievementList && (
@@ -364,7 +366,7 @@ function App() {
 
         {/* 底部社群連結 */}
         <div className="mt-12 pt-8 border-t-2 border-dashed border-[#bad32d]/30 flex flex-col items-center">
-          <p className="text-xs font-black opacity-40 mb-4 tracking-widest" style={{ color: theme.dark }}>
+          <p className="text-base font-black opacity-40 mb-4 tracking-widest" style={{ color: theme.dark }}>
             CONNECT WITH US
           </p>
           
@@ -402,14 +404,14 @@ function App() {
               <FaLine style={{ color: '#06C755' }} />
             </a>
           </div>
-          
-          <p className="mt-6 text-[10px] font-bold opacity-30">
-            © 2026 崇德心靈種子 | 智慧修道系統
-          </p>
         </div>
 
         {/* 登出按鈕 */}
-        <button onClick={() => signOut(auth)} className="w-full mt-8 text-gray-400 text-xs font-bold underline">登出</button>
+        <button onClick={() => signOut(auth)} className="w-full mt-4 text-gray-400 text-base font-bold underline">登出</button>
+
+        <p className="mt-6 text-sm font-bold opacity-30">
+          2026 崇德心靈種子 | 修道成長系統
+        </p>
       </div>
 
       {showEvents && <EventModal events={events} onClose={() => setShowEvents(false)} />}

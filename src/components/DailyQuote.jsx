@@ -15,7 +15,7 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection }) {
           className="w-full p-8 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
         >
           ✨ 抽取今日正能量 ✨
-          <p className="text-xs font-bold opacity-70 mt-2">點擊領取仙佛慈語</p>
+          <p className="text-base font-bold opacity-70 mt-2">點擊領取仙佛慈語</p>
         </button>
       ) : (
         <div className="space-y-4 animate-in zoom-in duration-300">
@@ -31,7 +31,7 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection }) {
             </p>
           </div>
 
-          {/* 再抽一張與查看收藏 */}
+          {/* 再抽一張與查看歷史紀錄 */}
           <div className="flex gap-3">
             <button 
               onClick={onDraw}
@@ -45,7 +45,7 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection }) {
               className="flex-1 bg-white border-2 py-3 rounded-2xl font-black text-sm transition-all"
               style={{ borderColor: theme.dark, color: theme.dark }}
             >
-              📚 我的收藏
+              📚 歷史紀錄
             </button>
           </div>
         </div>

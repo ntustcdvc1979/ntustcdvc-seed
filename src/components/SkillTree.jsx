@@ -12,6 +12,7 @@ export default function SkillTree({ userData, incrementSkill, decrementSkill }) 
       </Quadrant>
 
       <Quadrant title="心靈平靜 (修)" motto="修道越修越歡喜" icon="🧘" colorType="green">
+        <SkillCircle name="蔬食一餐" count={userData?.stats?.蔬食一餐} onClick={() => incrementSkill('蔬食一餐')} onDecrement={() => decrementSkill('蔬食一餐')} img="🥗" colorType="green" />
         <SkillCircle name="覺察情緒" count={userData?.stats?.覺察情緒} onClick={() => incrementSkill('覺察情緒')} onDecrement={() => decrementSkill('覺察情緒')} img="🌊" colorType="green" />
         <SkillCircle name="每日反省" count={userData?.stats?.每日反省} onClick={() => incrementSkill('每日反省')} onDecrement={() => decrementSkill('每日反省')} img="📝" colorType="green" />
         <SkillCircle name="一千叩首" count={userData?.stats?.一千叩首} onClick={() => incrementSkill('一千叩首')} onDecrement={() => decrementSkill('一千叩首')} img="🙇" colorType="green" />
@@ -31,7 +32,6 @@ export default function SkillTree({ userData, incrementSkill, decrementSkill }) 
 
       <Quadrant title="行動服務 (辦)" motto="辦道越辦越契機" icon="👼" colorType="yellow">
         <SkillCircle name="開伙幫廚" count={userData?.stats?.開伙幫廚} onClick={() => incrementSkill('開伙幫廚')} onDecrement={() => decrementSkill('開伙幫廚')} img="🍳" colorType="yellow" />
-        <SkillCircle name="蔬食一餐" count={userData?.stats?.蔬食一餐} onClick={() => incrementSkill('蔬食一餐')} onDecrement={() => decrementSkill('蔬食一餐')} img="🥗" colorType="yellow" />
         <SkillCircle name="壇務工作" count={userData?.stats?.壇務工作} onClick={() => incrementSkill('壇務工作')} onDecrement={() => decrementSkill('壇務工作')} img="🕯️" colorType="yellow" />
         <SkillCircle name="淨灘/山志工" count={userData?.stats?.淨灘山志工} onClick={() => incrementSkill('淨灘山志工')} onDecrement={() => decrementSkill('淨灘山志工')} img="🌊" colorType="yellow" />
         <SkillCircle name="參與營隊志工" count={userData?.stats?.參與營隊志工} onClick={() => incrementSkill('參與營隊志工')} onDecrement={() => decrementSkill('參與營隊志工')} img="🎈" colorType="yellow" />
