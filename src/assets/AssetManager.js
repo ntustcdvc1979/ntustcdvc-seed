@@ -1,9 +1,9 @@
-import veganImg from './vegan.png';
-import chefImg from './chef.png';
-import morningReadImg from './morningread.png';
-import mentorImg from './mentor.png';
-import cleanImg from './clean.png';
-import bowImg from './bow.png';
+import veganImg from './vegan.webp';
+import chefImg from './chef.webp';
+import morningReadImg from './morningread.webp';
+import mentorImg from './mentor.webp';
+import cleanImg from './clean.webp';
+import bowImg from './bow.webp';
 
 import mainLogo from './NewLogo.png';
 import smallLogo from './small.png';

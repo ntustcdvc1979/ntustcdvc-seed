@@ -10,9 +10,8 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection }) {
           style={{ 
             backgroundColor: theme.yellow, 
             boxShadow: `0 8px 0px 0px #d4a017`,
-            color: theme.dark 
           }}
-          className="w-full p-8 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
+          className="w-full p-8 rounded-[2.5rem] text-white font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
         >
           ✨ 抽取今日正能量 ✨
           <p className="text-base font-bold opacity-70 mt-2">點擊領取仙佛慈語</p>
