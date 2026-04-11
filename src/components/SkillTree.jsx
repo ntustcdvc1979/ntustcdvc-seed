@@ -5,7 +5,7 @@ export default function SkillTree({ userData, incrementSkill, decrementSkill }) 
   return (
     <div className="space-y-10">
       <Quadrant title="智慧增長 (學)" motto="學道越學越和氣" icon="📖" colorType="green">
-        <SkillCircle name="頌經" count={userData?.stats?.頌經} onClick={() => incrementSkill('頌經')} onDecrement={() => decrementSkill('讀經')} img="📿" colorType="green" />
+        <SkillCircle name="頌經" count={userData?.stats?.頌經} onClick={() => incrementSkill('頌經')} onDecrement={() => decrementSkill('頌經')} img="📿" colorType="green" />
         <SkillCircle name="抄寫經典" count={userData?.stats?.抄寫經典} onClick={() => incrementSkill('抄寫經典')} onDecrement={() => decrementSkill('抄寫經典')} img="✍️" colorType="green" />
         <SkillCircle name="參與研究班" count={userData?.stats?.參與研究班} onClick={() => incrementSkill('參與研究班')} onDecrement={() => decrementSkill('參與研究班')} img="🏫" colorType="green" />
         <SkillCircle name="研讀聖訓經典" count={userData?.stats?.研讀聖訓經典} onClick={() => incrementSkill('研讀聖訓經典')} onDecrement={() => decrementSkill('研讀聖訓經典')} img="📜" colorType="green" />

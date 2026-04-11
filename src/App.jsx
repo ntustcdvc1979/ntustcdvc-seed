@@ -25,6 +25,7 @@ function App() {
   const [unlockedBadgeName, setUnlockedBadgeName] = useState(null); // 控制動畫顯示的勳章名稱
   const hasInitializedBadges = useRef(false); // 標記是否已完成初次加載
   const prevBadgeNamesRef = useRef([]); // 紀錄上一次滿足條件的勳章清單
+  const [loading, setLoading] = useState(true);
 
   // 取得稱號配置
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
@@ -74,39 +75,54 @@ function App() {
   };
 
   useEffect(() => {
-    // A. 處理 Redirect 登入結果
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          fetchUserData(result.user.uid);
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // A. 處理 Redirect 登入結果 (針對手機端)
+        const result = await getRedirectResult(auth);
+        if (result?.user && isMounted) {
+          setUser(result.user);
+          await fetchUserData(result.user.uid);
         }
-      })
-      .catch((err) => console.error("Redirect Error:", err));
-
-    // B. 監聽登入狀態切換
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      if (u) {
-        setUser(u);
-        fetchUserData(u.uid);
-      } else {
-        setUser(null);
-        setUserData(null);
+      } catch (err) {
+        console.error("Redirect Error:", err);
       }
-    });
 
-    // C. 抓取所有慈語 (只需執行一次)
-    const fetchQuotes = async () => {
+      // B. 監聽登入狀態切換
+      const unsubscribe = auth.onAuthStateChanged(async (u) => {
+        if (isMounted) {
+          if (u) {
+            setUser(u);
+            await fetchUserData(u.uid);
+          } else {
+            setUser(null);
+            setUserData(null);
+          }
+          // 關鍵：一旦身分確認完成（不論有無登入），就關閉載入中狀態
+          setLoading(false);
+        }
+      });
+
+      // C. 抓取所有慈語 (只需執行一次)
       try {
         const snapshot = await getDocs(collection(db, 'daily_quotes'));
-        setAllQuotes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (isMounted) {
+          setAllQuotes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
       } catch (err) {
         console.error("Fetch Quotes Error:", err);
       }
-    };
-    
-    fetchQuotes();
 
-    return () => unsubscribe();
+      return unsubscribe;
+    };
+
+    const authUnsubscribePromise = initializeAuth();
+
+    return () => {
+      isMounted = false;
+      authUnsubscribePromise.then(unsub => unsub && unsub());
+    };
   }, []);
 
   // 監控勳章解鎖邏輯
@@ -160,25 +176,27 @@ function App() {
 
   }, [userData, titleConfig, user]);
 
-  const handleLogin = () => {
-    // 簡單判斷：如果是手機或平板，使用 Redirect
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      signInWithRedirect(auth, provider);
-    } else {
-      signInWithPopup(auth, provider).catch((error) => {
-        // 如果 Popup 失敗（被阻擋），降級使用 Redirect
-        if (error.code === 'auth/popup-blocked') {
-          signInWithRedirect(auth, provider);
-        }
-      });
+  const handleLogin = async () => {
+    try {
+      // 1. 不管手機還是電腦，先嘗試 Popup
+      // 在很多現代 Android Chrome 版本中，如果點擊是直接觸發的，Popup 是會成功的
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      // 2. 如果 Popup 被擋住 (blocked) 或出錯，再嘗試 Redirect
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+        console.log("Popup 被攔截，切換至 Redirect...");
+        signInWithRedirect(auth, provider).catch((redirectError) => {
+          alert("無法跳轉，請聯絡管理員：" + redirectError.message);
+        });
+      } else {
+        console.error("Login Error:", error);
+      }
     }
   };
 
   const drawCard = async () => {
     if (allQuotes.length === 0) return;
-    const filtered = allQuotes.filter(item => userData.isTaoQin ? true : item.type === 'non_Taoqin');
+    const filtered = allQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
     setCurrentQuote(randomQuote);
 
@@ -225,6 +243,15 @@ function App() {
     setUserData({ ...userData, stats: { ...userData.stats, [skill]: newCount } });
     updateDoc(userRef, { [`stats.${skill}`]: newCount });
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white">
+        <div className="w-12 h-12 border-4 border-[#bad32d] border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 font-black text-[#bad32d]">種子萌芽中...</p>
+      </div>
+    );
+  }
 
   if (!user) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white">
