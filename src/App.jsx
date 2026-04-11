@@ -40,6 +40,9 @@ function App() {
     const userRef = doc(db, 'users', uid);
     const docSnap = await getDoc(userRef);
 
+    // 取得目前登入者的 Google 資訊
+  const currentUser = auth.currentUser;
+
     const defaultStats = { 
       頌經: 0, 抄寫經典: 0, 參與研究班: 0, 研讀聖訓經典: 0,
       覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 整理環境: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
@@ -48,21 +51,27 @@ function App() {
     };
 
     if (docSnap.exists()) {
-      const dbData = docSnap.data();
+      const data = docSnap.data();
+      
+      // 選項：如果資料庫裡沒名字（舊用戶），可以順便補上
+      if (!data.name || !data.email) {
+        await updateDoc(userRef, {
+          name: currentUser?.displayName || "未知用戶",
+          email: currentUser?.email || "無信箱資訊"
+        });
+      }
 
-      const mergedUserData = {
-        ...dbData,
-        stats: {
-          ...defaultStats,
-          ...(dbData.stats || {}) // 確保 stats 即使為空也不會報錯
-        },
-        badges: dbData.badges || [], 
-        collection: dbData.collection || []
-      };
-
-      setUserData(mergedUserData);
+      setUserData({
+        ...data,
+        stats: { ...defaultStats, ...data.stats },
+        badges: data.badges || [],
+        collection: data.collection || []
+      });
     } else {
+      // 新用戶初始化：加入 name 和 email
       const initial = {
+        name: currentUser?.displayName || "未知用戶",
+        email: currentUser?.email || "無信箱資訊",
         isTaoQin: false,
         stats: defaultStats,
         collection: [],
