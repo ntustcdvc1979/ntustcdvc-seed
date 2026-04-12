@@ -49,7 +49,7 @@ export const getTitleConfig = (userData) => [
   { 
     name: "心靈導師", 
     requirement: () => (userData?.stats?.關心成全一個人 >= 20),
-    description: "燈傳燈，心印心。在他人迷惘時點亮一盞指路明燈，引領迷航的靈魂回歸覺性的故鄉。",
+    description: "在他人迷惘時點亮一盞指路明燈，引領迷航的靈魂回歸自性本來。",
     goal: "累計關心成全一個人達20次",
     isHidden: false, // 一般成就
   },
@@ -63,28 +63,28 @@ export const getTitleConfig = (userData) => [
   { 
     name: "護道使者", 
     requirement: () => (userData?.stats?.壇務工作 >= 10),
-    description: "守護道場的莊嚴，成就眾生的精進。隱身在幕後的默默付出，是修道者最堅實的護法心願。",
+    description: "護者皆有不可思議之無量福、無量壽、無量功，成就三界頂天立地之盛名也。",
     goal: "累計壇務工作達10次",
     isHidden: false, // 一般成就
   },
   { 
     name: "淨化環境淨化心", 
     requirement: () => (userData?.stats?.淨灘山志工 >= 3),
-    description: "彎下腰撿起垃圾，也拾起那顆遺落已久的慈悲心。淨化大地環境，就是在淨化自性的靈山。",
+    description: "一個個彎下腰，帶走垃圾、廢棄物，真誠堅定的背影，是蔚藍海岸邊最動人的光景。",
     goal: "累計參與淨灘山志工達3次",
     isHidden: false, // 一般成就
   },
   { 
     name: "赤子之心", 
     requirement: () => (userData?.stats?.參與營隊志工 >= 1),
-    description: "在孩子們的純真笑臉中，照見最初的自己。守護那份純潔不染的心，讓道苗在幼小的心靈中扎根。",
+    description: "在孩子們的純真笑臉中，看見最初的自己。",
     goal: "參與營隊志工1次",
     isHidden: false, // 一般成就
   },
   {
     name: "曙光覺醒者",
     requirement: () => (isMorningTime() && userData?.stats?.頌經 > 0),
-    description: "在清晨的靜謐中喚醒自性。一日之計在於晨，一生之計在於醒。",
+    description: "一日之計在於晨；一歲之計在於春；一生之計在於勤。",
     goal: "在早上5點至8點間頌經",
     isHidden: true, // 隱藏成就
   },

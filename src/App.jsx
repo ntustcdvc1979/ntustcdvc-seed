@@ -49,7 +49,7 @@ function App() {
       頌經: 0, 抄寫經典: 0, 參與研究班: 0, 研讀聖訓經典: 0,
       蔬食一餐: 0, 覺察情緒: 0, 每日反省: 0, 一千叩首: 0, 每日用三寶: 0, 整理環境: 0, 轉念: 0, 佈施: 0, 忍辱: 0,
       推薦朋友: 0, 分享好文: 0, 關心成全一個人: 0, 分享道在日常: 0,
-      開伙幫廚: 0, 壇務工作: 0, 淨灘山志工: 0, 參與營隊志工: 0, 參與獻供: 0, 法會實務: 0, 渡一個人: 0
+      開伙幫廚: 0, 壇務工作: 0, 淨灘山志工: 0, 營隊志工: 0, 初一十五獻供: 0, 法會實務: 0, 渡人求道: 0
     };
 
     if (docSnap.exists()) {
@@ -206,7 +206,7 @@ function App() {
   };
 
   const drawCard = async () => {
-    if (allQuotes.length === 0) return;
+    if (allQuotes.length === 0 || !userData || !user) return;
     const filtered = allQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
     setCurrentQuote(randomQuote);
@@ -215,12 +215,14 @@ function App() {
     // 更新本地與 Firebase
     const currentCollection = userData.collection || [];
     const newCollection = Array.from(new Set([...currentCollection, randomQuote.id]));
-    setUserData({ ...userData, collection: newCollection });
-    
-    await updateDoc(userRef, { 
-      collection: arrayUnion(randomQuote.id), 
-      lastCheckIn: new Date().toLocaleDateString() 
-    });
+
+    // 4. 同步更新本地狀態
+    setUserData(prev => ({ ...prev, collection: newCollection }));
+
+    await setDoc(userRef, { 
+        collection: arrayUnion(randomQuote.id), 
+        lastCheckIn: new Date().toLocaleDateString() 
+      }, { merge: true });
   };
 
   const incrementSkill = (skill) => {

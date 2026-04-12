@@ -61,14 +61,11 @@ export function SkillCircle({ name, count, onClick, onDecrement, img, colorType 
       </div>
 
       <span 
-        className="text-sm font-black leading-tight text-center"
+        className="text-sm font-black leading-tight text-center break-words"
         style={{ 
-          display: 'block',
-          whiteSpace: 'pre-line', // 關鍵：保留換行符號
+          maxWidth: '80px', // 配合圓圈寬度加大
           color: theme.dark,
-          textShadow: '0.5px 0.5px 0px white',
-          // 移除 maxWidth 或設為 none，避免寬度擠壓導致意外斷行
-          maxWidth: 'none' 
+          textShadow: '0.5px 0.5px 0px white' // 稍微增加立體感
         }}
       >
         {name}
