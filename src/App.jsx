@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import BadgeUnlockModal from './components/BadgeUnlockModal'; // 動畫
+import BadgeUnlockModal from './components/BadgeUnlockModal';
 import { auth, db, provider } from './firebase-config';
 import { signInWithPopup, signOut, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs } from 'firebase/firestore';
-import { FaInstagram, FaFacebook, FaLine } from 'react-icons/fa'; // 圖示
+import { FaInstagram, FaFacebook, FaLine } from 'react-icons/fa';
 
 import DailyQuote from './components/DailyQuote'
 import EventModal from './components/EventModal';
@@ -11,6 +11,10 @@ import Badge from './components/Badge';
 import SkillTree from './components/SkillTree';
 import CollectionModal from './components/CollectionModal';
 import AchievementList from './components/AchievementList';
+import SeedGrowth from './components/SeedGrowth'; 
+import FriendList from './components/FriendList';
+import VisitorProfile from './components/VisitorProfile';
+import SettingsModal from './components/SettingsModal';
 import { getTitleConfig } from './utils/gameLogic';
 import { Logos } from './assets/AssetManager';
 import { theme } from './styles/theme';
@@ -23,13 +27,16 @@ function App() {
   const [events, setEvents] = useState([]);
   const [showCollection, setShowCollection] = useState(false);
   const [allQuotes, setAllQuotes] = useState([]);
-  const [unlockedBadgeName, setUnlockedBadgeName] = useState(null); // 控制動畫顯示的勳章名稱
-  const hasInitializedBadges = useRef(false); // 標記是否已完成初次加載
-  const prevBadgeNamesRef = useRef([]); // 紀錄上一次滿足條件的勳章清單
+  const [unlockedBadgeName, setUnlockedBadgeName] = useState(null);
+  const hasInitializedBadges = useRef(false);
+  const prevBadgeNamesRef = useRef([]);
   const [loading, setLoading] = useState(true);
   const [showAchievementList, setShowAchievementList] = useState(false);
+  const [viewingUser, setViewingUser] = useState(null);
+  const [showFriendList, setShowFriendList] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
 
-  // 取得稱號配置
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
 
   const openEventModal = async () => {
@@ -41,9 +48,7 @@ function App() {
   const fetchUserData = async (uid) => {
     const userRef = doc(db, 'users', uid);
     const docSnap = await getDoc(userRef);
-
-    // 取得目前登入者的 Google 資訊
-  const currentUser = auth.currentUser;
+    const currentUser = auth.currentUser;
 
     const defaultStats = { 
       頌經: 0, 抄寫經典: 0, 參與研究班: 0, 研讀聖訓經典: 0,
@@ -54,31 +59,33 @@ function App() {
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-      
-      // 選項：如果資料庫裡沒名字（舊用戶），可以順便補上
-      if (!data.name || !data.email) {
+      if (!data.name || !data.email || !data.shortId) {
         await updateDoc(userRef, {
-          name: currentUser?.displayName || "未知用戶",
-          email: currentUser?.email || "無信箱資訊"
+          name: data.name || currentUser?.displayName || "未知用戶",
+          email: data.email || currentUser?.email || "無信箱資訊",
+          shortId: data.shortId || uid.substring(0, 6).toLowerCase(),
+          exp: data.exp || 0
         });
       }
-
       setUserData({
         ...data,
         stats: { ...defaultStats, ...data.stats },
         badges: data.badges || [],
-        collection: data.collection || []
+        collection: data.collection || [],
+        shortId: data.shortId || uid.substring(0, 6).toLowerCase()
       });
     } else {
-      // 新用戶初始化：加入 name 和 email
       const initial = {
         name: currentUser?.displayName || "未知用戶",
         email: currentUser?.email || "無信箱資訊",
-        isTaoQin: true, // 第一階段僅開放道親使用
+        isTaoQin: true,
         stats: defaultStats,
         collection: [],
         badges: [],
-        lastCheckIn: ""
+        lastCheckIn: "",
+        shortId: uid.substring(0, 6).toLowerCase(),
+        exp: 0,
+        following: [],
       };
       await setDoc(userRef, initial);
       setUserData(initial);
@@ -87,20 +94,15 @@ function App() {
 
   useEffect(() => {
     let isMounted = true;
-
     const initializeAuth = async () => {
       try {
-        // A. 處理 Redirect 登入結果 (針對手機端)
         const result = await getRedirectResult(auth);
         if (result?.user && isMounted) {
           setUser(result.user);
           await fetchUserData(result.user.uid);
         }
-      } catch (err) {
-        console.error("Redirect Error:", err);
-      }
+      } catch (err) { console.error(err); }
 
-      // B. 監聽登入狀態切換
       const unsubscribe = auth.onAuthStateChanged(async (u) => {
         if (isMounted) {
           if (u) {
@@ -110,81 +112,42 @@ function App() {
             setUser(null);
             setUserData(null);
           }
-          // 關鍵：一旦身分確認完成（不論有無登入），就關閉載入中狀態
           setLoading(false);
         }
       });
 
-      // C. 抓取所有慈語 (只需執行一次)
       try {
         const snapshot = await getDocs(collection(db, 'daily_quotes'));
         if (isMounted) {
           setAllQuotes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
         }
-      } catch (err) {
-        console.error("Fetch Quotes Error:", err);
-      }
+      } catch (err) { console.error(err); }
 
       return unsubscribe;
     };
-
-    const authUnsubscribePromise = initializeAuth();
-
-    return () => {
-      isMounted = false;
-      authUnsubscribePromise.then(unsub => unsub && unsub());
-    };
+    initializeAuth();
+    return () => { isMounted = false; };
   }, []);
 
-  // 監控勳章解鎖邏輯
   useEffect(() => {
-    // 1. 基礎檢查：確保資料、stats 與 user 都已載入
     if (!userData || !userData.stats || !user) return;
-
-    // 2. 取得目前所有滿足條件的勳章名稱
-    const currentBadgeNames = titleConfig
-      .filter((t) => t.requirement())
-      .map((t) => t.name);
-
-    // 3. 初次加載時，只紀錄目前狀態，不跳動畫 (避免登入時刷出一堆舊勳章)
+    const currentBadgeNames = titleConfig.filter((t) => t.requirement()).map((t) => t.name);
     if (!hasInitializedBadges.current) {
       prevBadgeNamesRef.current = currentBadgeNames;
       hasInitializedBadges.current = true;
       return;
     }
-
-    // 4. 【核心防範】找出「新解鎖」且「以前從未獲得過」的勳章
-    // 我們要比對 currentBadgeNames (現在符合) 
-    // 且排除 userData.badges (資料庫中已有的紀錄)
     const newBadges = currentBadgeNames.filter((name) => {
-      const hasAlreadyEarned = userData.badges && userData.badges.includes(name);
-      const wasInPrevRef = prevBadgeNamesRef.current.includes(name);
-      
-      // 只有「現在符合條件」且「資料庫裡沒有」且「剛才那秒還沒達成」的才算新解鎖
-      return !hasAlreadyEarned && !wasInPrevRef;
+      return !(userData.badges && userData.badges.includes(name)) && !prevBadgeNamesRef.current.includes(name);
     });
 
-    // 5. 如果有新解鎖，觸發動畫並永久存入資料庫
     if (newBadges.length > 0) {
       const badgeToAnimate = newBadges[0];
       setUnlockedBadgeName(badgeToAnimate);
-
-      // 更新 Firebase：永久紀錄此勳章已獲得
-      const userRef = doc(db, 'users', user.uid);
-      updateDoc(userRef, { 
-        badges: arrayUnion(...newBadges) 
-      });
-
-      // 同步更新本地 state，確保下一秒 logic 知道已拿過
-      setUserData(prev => ({
-        ...prev,
-        badges: [...(prev.badges || []), ...newBadges]
-      }));
+      updateDoc(doc(db, 'users', user.uid), { badges: arrayUnion(...newBadges) });
+      setUserData(prev => ({ ...prev, badges: [...(prev.badges || []), ...newBadges] }));
     }
-
-    // 6. 更新紀錄，為下一次比對做準備
     prevBadgeNamesRef.current = currentBadgeNames;
-
   }, [userData, titleConfig, user]);
 
   const handleLogin = async () => {
@@ -207,71 +170,42 @@ function App() {
 
   const drawCard = async () => {
     if (allQuotes.length === 0 || !userData || !user) return;
+    const today = new Date().toLocaleDateString();
+    const hasWateredToday = userData.lastCheckIn === today;
+    const newExp = hasWateredToday ? (userData.exp || 0) : (userData.exp || 0) + 1;
     const filtered = allQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
+    if (filtered.length === 0) return;
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
     setCurrentQuote(randomQuote);
-
-    const userRef = doc(db, 'users', user.uid);
-    // 更新本地與 Firebase
-    const currentCollection = userData.collection || [];
-    const newCollection = Array.from(new Set([...currentCollection, randomQuote.id]));
-
-    // 4. 同步更新本地狀態
-    setUserData(prev => ({ ...prev, collection: newCollection }));
-
-    await setDoc(userRef, { 
-        collection: arrayUnion(randomQuote.id), 
-        lastCheckIn: new Date().toLocaleDateString() 
-      }, { merge: true });
+    setUserData(prev => ({ ...prev, collection: Array.from(new Set([...prev.collection, randomQuote.id])), exp: newExp, lastCheckIn: today }));
+    await setDoc(doc(db, 'users', user.uid), { collection: arrayUnion(randomQuote.id), exp: newExp, lastCheckIn: today }, { merge: true });
   };
 
   const incrementSkill = (skill) => {
     if (!userData) return;
-
-    const userRef = doc(db, 'users', user.uid);
-    
-    // 取得當前數值 (若無則為 0)
-    const currentCount = (userData.stats && userData.stats[skill]) ? userData.stats[skill] : 0;
-    const newCount = currentCount + 1;
-
-    // 1. 更新本地 State 以即時反應 UI
-    const newStats = { ...userData.stats, [skill]: newCount };
-    setUserData({ ...userData, stats: newStats });
-
-    // 2. 更新 Firestore (使用點記法更新特定欄位，不會蓋掉其他技能)
-    updateDoc(userRef, { 
-      [`stats.${skill}`]: newCount 
-    });
+    const newCount = (userData.stats[skill] || 0) + 1;
+    setUserData({ ...userData, stats: { ...userData.stats, [skill]: newCount } });
+    updateDoc(doc(db, 'users', user.uid), { [`stats.${skill}`]: newCount });
   };
 
   const decrementSkill = (skill) => {
-    if (!userData) return;
-
-    const currentCount = (userData.stats && userData.stats[skill]) ? userData.stats[skill] : 0;
-    if (currentCount <= 0) return; // 防止變負數
-
-    const newCount = currentCount - 1;
-    const userRef = doc(db, 'users', user.uid);
-
-    // 更新本地與資料庫
+    if (!userData || (userData.stats[skill] || 0) <= 0) return;
+    const newCount = userData.stats[skill] - 1;
     setUserData({ ...userData, stats: { ...userData.stats, [skill]: newCount } });
-    updateDoc(userRef, { [`stats.${skill}`]: newCount });
+    updateDoc(doc(db, 'users', user.uid), { [`stats.${skill}`]: newCount });
   };
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-white">
-        <div className="w-12 h-12 border-4 border-[#bad32d] border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 font-black text-[#bad32d]">種子萌芽中...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white">
+      <div className="w-12 h-12 border-4 border-[#bad32d] border-t-transparent rounded-full animate-spin"></div>
+      <p className="mt-4 font-black text-[#bad32d]">種子萌芽中...</p>
+    </div>
+  );
 
   if (!user) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white">
       <div className="flex items-center gap-4 mb-4">
         <img src={Logos.Main} alt="Logo" className="h-20 object-contain" />
-        <img src={Logos.Small} alt="Small Logo" className="h-12 object-contain" />
       </div>
       <h1 className="text-4xl font-black mb-8 text-black" style={{ color: '#000000' }}>🌱 崇德心靈種子</h1>
       <button onClick={handleLogin} className="bg-black text-white px-12 py-4 rounded-full font-bold">開啟探索</button>
@@ -279,54 +213,99 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#fffdf5] flex justify-center md:py-10">
-      <div className="bg-white w-full max-w-md min-h-screen md:min-h-0 md:rounded-[3rem] shadow-[0_20px_50px_rgba(186,211,45,0.15)] p-8 overflow-y-auto border-4 border-[#bad32d]/20" style={{ color: theme.dark }}>
-
-        {/* Logo */}
-        <div className="flex justify-center items-center gap-3 mb-6 bg-[#bad32d]/10 py-4 rounded-3xl">
-          <img src={Logos.Main} alt="Main Logo" className="h-12 object-contain" />
-          <h1 className="text-2xl font-black" style={{ color: theme.dark }}>心靈種子</h1>
-        </div>
-
-        {/* Header */}
-        <header className="flex justify-between items-start mb-10 border-b-2 border-dashed border-[#bad32d] pb-8">
-          <div className="flex-1">
-            <p 
-              className="text-2xl font-medium opacity-60 mb-2 tracking-wider" 
-              style={{ color: theme.dark }}
-            >
-              你好，{user.displayName}
-            </p>
-            
-            {userData?.isTaoQin && <div className="text-2xl">🌱</div>}
-
-            {/* 勳章 */}
-            <div className="flex flex-wrap gap-5 mt-4 justify-center w-full">
-              {titleConfig
-                .filter((t) => userData?.badges?.includes(t.name)) // 核心修改：改為判斷是否在收藏清單中
-                .map((t) => (
-                  <Badge key={t.name} badgeData={t} />
-                ))}
+    <div className="min-h-screen bg-[#1a1a1a] flex justify-center items-center">
+      <div className="relative w-full max-w-[450px] aspect-[1536/2752] bg-transparent shadow-2xl overflow-hidden flex flex-col p-6 border-x-4 border-black/20 transition-all duration-700">
+        
+        <header className="relative z-30 flex justify-between items-start mb-2">
+          <div className="flex flex-col items-start gap-1 max-w-[55%]">
+            {viewingUser ? (
+              <button onClick={() => setViewingUser(null)} className="mb-2 cursor-pointer bg-white border-2 border-black px-3 py-1 rounded-full font-black text-base shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5">
+                ← 返回
+              </button>
+            ) : (
+              // 點擊使用者名稱開啟設定
+              <button 
+                onClick={() => setShowSettings(true)}
+                className="group flex flex-col items-start"
+              >
+                <h2 className="text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-transparent group-hover:border-black transition-all" style={{ color: theme.dark }}>
+                  {user.displayName} ⚙️
+                </h2>
+              </button>
+            )}
+            <div className="flex flex-wrap gap-1">
+              {!viewingUser && titleConfig
+                .filter((t) => (viewingUser ? viewingUser.badges : userData?.badges)?.includes(t.name))
+                .map((t) => <Badge key={t.name} badgeData={t} />)}
             </div>
           </div>
+
+          {!viewingUser && (
+            <div className="flex flex-col items-end gap-3">
+              <div className="flex gap-2">
+                {[
+                  { label: '成就', icon: '🏆', action: () => setShowAchievementList(true) },
+                  { label: '活動', icon: '📅', action: openEventModal },
+                  { label: '朋友', icon: '👥', action: () => setShowFriendList(true) }
+                ].map(btn => (
+                  <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1">
+                    <div className="text-xl p-2 cursor-pointer bg-white/90 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all">
+                      {btn.icon}
+                    </div>
+                    <span className="font-black text-sm px-1 rounded" style={{ color: theme.dark }}>{btn.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* 學修講辦 */}
+              <div className="flex gap-1.5">
+                {['學', '修', '講', '辦'].map((cat) => (
+                  <button key={cat} onClick={() => setActiveCategory(cat)} className="flex flex-col items-center gap-0.5">
+                    <div className="w-9 h-9 cursor-pointer rounded-full border-2 border-black bg-white/90 flex items-center justify-center text-base shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all">
+                      {cat === '學' ? '📖' : cat === '修' ? '🙏' : cat === '講' ? '📢' : '🤝'}
+                    </div>
+                    <span className="font-black text-sm px-1 rounded" style={{ color: theme.dark }}>{cat}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </header>
 
-        {showAchievementList && (
-          <AchievementList 
-            titleConfig={titleConfig} 
-            earnedBadges={userData.badges || []} 
-            onClose={() => setShowAchievementList(false)} 
+        {/* --- 核心展示區 --- */}
+        <div className="absolute inset-0 z-10 h-full w-full">
+          {!viewingUser ? (
+            <SeedGrowth exp={userData?.exp} isOwner={true} />
+          ) : (
+            <VisitorProfile visitorData={viewingUser} />
+          )}
+        </div>
+
+        <footer className="relative z-30 mt-auto pb-6 flex items-center justify-center">
+          {!viewingUser && (
+            <div className="w-full flex justify-center">
+              <div className="w-[85%] scale-90 flex justify-center origin-center transition-all duration-300 hover:translate-y-[-4px] hover:scale-95">
+                {/* 這裡只傳入按鈕 logic */}
+                <DailyQuote 
+                  currentQuote={null} // 這裡不處理彈窗展示
+                  onDraw={drawCard} 
+                />
+              </div>
+            </div>
+          )}
+        </footer>
+
+        {/* 仙佛慈語視窗 */}
+        {currentQuote && (
+          <DailyQuote 
+            currentQuote={currentQuote} 
+            onDraw={drawCard} 
+            onOpenCollection={() => setShowCollection(true)}
+            onCloseQuote={() => setCurrentQuote(null)} 
           />
         )}
 
-        {/* 慈語抽卡 */}
-        <DailyQuote
-          currentQuote={currentQuote}
-          onDraw={drawCard} 
-          onOpenCollection={() => setShowCollection(true)}
-        />
-
-        {/* 收藏視窗 */}
+        {/* 歷史慈語視窗 */}
         {showCollection && (
           <CollectionModal 
             collection={userData.collection} 
@@ -335,96 +314,40 @@ function App() {
           />
         )}
 
-        {/* 技能樹 */}
-        <SkillTree 
-          userData={userData} 
-          incrementSkill={incrementSkill}
-          decrementSkill={decrementSkill}
-        />
-        
-        {/* 成就清單按鈕 */}
-        <button 
-          onClick={() => setShowAchievementList(true)} 
-          style={{ 
-            backgroundColor: theme.yellow, // 使用黃色與綠色按鈕做區隔
-            boxShadow: `0 8px 0px 0px #d4a017`, // 深黃色陰影
-          }}
-          className="w-full mt-12 text-white py-6 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
-        >
-          🏆 成就清單
-        </button>
+        {/* 設定彈窗 */}
+        {showSettings && (
+          <SettingsModal 
+            onClose={() => setShowSettings(false)} 
+            onSignOut={() => signOut(auth)} 
+          />
+        )}
 
-        {/* 活動快訊按鈕 */}
-        <button 
-          onClick={openEventModal} 
-          style={{
-            backgroundColor: theme.green,
-            boxShadow: `0 8px 0px 0px #a5bc28`,
-          }}
-          className="w-full mt-12 text-white py-6 rounded-[2.5rem] font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
-        >
-          📅 活動快訊
-        </button>
-
-        {/* 底部社群連結 */}
-        <div className="mt-12 pt-8 border-t-2 border-dashed border-[#bad32d]/30 flex flex-col items-center">
-          <p className="text-base font-black opacity-40 mb-4 tracking-widest" style={{ color: theme.dark }}>
-            CONNECT WITH US
-          </p>
-          
-          <div className="flex gap-6">
-            {/* Instagram */}
-            <a 
-              href="https://www.instagram.com/ntustcdvc?igsh=M2pmNTJiMGpvbnRl" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-full bg-white border-4 border-[#1a1a1a] flex items-center justify-center text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all"
-              style={{ boxShadow: `4px 4px 0px 0px ${theme.yellow}` }}
-            >
-              <FaInstagram style={{ color: '#E1306C' }} />
-            </a>
-
-            {/* Facebook */}
-            <a 
-              href="https://www.facebook.com/cdvcntust/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-full bg-white border-4 border-[#1a1a1a] flex items-center justify-center text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all"
-              style={{ boxShadow: `4px 4px 0px 0px ${theme.yellow}` }}
-            >
-              <FaFacebook style={{ color: '#1877F2' }} />
-            </a>
-
-            {/* LINE 匿名社群 */}
-            <a 
-              href="https://line.me/ti/g2/zovx0m_zdGqe-VDGrtJxYPafrxfIt5JM9Z3n2g?utm_source=invitation&utm_medium=link_copy&utm_campaign=default" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-full bg-white border-4 border-[#1a1a1a] flex items-center justify-center text-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:translate-y-[2px] active:shadow-none transition-all"
-              style={{ boxShadow: `4px 4px 0px 0px ${theme.yellow}` }}
-            >
-              <FaLine style={{ color: '#06C755' }} />
-            </a>
+        {/* --- 彈窗組件：學修講辦 --- */}
+        {activeCategory && (
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+            <div className="bg-white w-full max-w-[400px] rounded-[3rem] p-8 max-h-[85vh] overflow-y-auto border-4 border-black relative animate-in zoom-in duration-300">
+              <button 
+                onClick={() => setActiveCategory(null)} 
+                className="absolute top-6 right-6 font-black text-xl p-2 cursor-pointer hover:opacity-50 transition-opacity"
+              >
+                ✕
+              </button>
+              <SkillTree 
+                category={activeCategory} 
+                userData={userData} 
+                incrementSkill={incrementSkill} 
+                decrementSkill={decrementSkill} 
+              />
+            </div>
           </div>
-        </div>
-
-        {/* 登出按鈕 */}
-        <button onClick={() => signOut(auth)} className="w-full mt-4 text-gray-400 text-base font-bold underline">登出</button>
-
-        <p className="mt-6 text-sm font-bold opacity-30">
-          2026 崇德心靈種子 | 修道成長系統
-        </p>
+        )}
+        {showFriendList && (
+          <FriendList currentUser={userData} setUserData={setUserData} onVisit={(t) => { setViewingUser(t); setShowFriendList(false); }} onClose={() => setShowFriendList(false)} />
+        )}
+        {showEvents && <EventModal events={events} onClose={() => setShowEvents(false)} />}
+        {showAchievementList && <AchievementList titleConfig={titleConfig} earnedBadges={userData.badges || []} onClose={() => setShowAchievementList(false)} />}
+        {unlockedBadgeName && <BadgeUnlockModal badgeName={unlockedBadgeName} onClose={() => setUnlockedBadgeName(null)} />}
       </div>
-
-      {showEvents && <EventModal events={events} onClose={() => setShowEvents(false)} />}
-
-      {/* 解鎖動畫視窗 (放在最下層確保能蓋過所有內容) */}
-      {unlockedBadgeName && (
-        <BadgeUnlockModal 
-          badgeName={unlockedBadgeName} 
-          onClose={() => setUnlockedBadgeName(null)} // 點擊後關閉動畫
-        />
-      )}
     </div>
   );
 }

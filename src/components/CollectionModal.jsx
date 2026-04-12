@@ -10,7 +10,7 @@ export default function CollectionModal({ collection, allQuotes, onClose }) {
         className="bg-white w-full max-w-sm rounded-[3rem] border-4 p-8 relative max-h-[80vh] flex flex-col"
         style={{ borderColor: theme.yellow }}
       >
-        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-black">✕</button>
+        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-black cursor-pointer hover:opacity-50 transition-opacity">✕</button>
         
         <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
           <span>📚</span> 智慧錦囊

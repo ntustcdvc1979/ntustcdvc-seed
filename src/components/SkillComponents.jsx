@@ -35,7 +35,7 @@ export function SkillCircle({ name, count, onClick, onDecrement, img, colorType 
         <button 
           onClick={onClick} 
           style={{ boxShadow: `6px 6px 0px 0px ${shadowColor}` }}
-          className="w-20 h-20 rounded-full border-4 border-[#1a1a1a] bg-white flex items-center justify-center text-3xl active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all relative z-10"
+          className="w-20 h-20 cursor-pointer rounded-full border-4 border-[#1a1a1a] bg-white flex items-center justify-center text-3xl active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all relative z-10"
         >
           {img}
         </button>
@@ -52,7 +52,7 @@ export function SkillCircle({ name, count, onClick, onDecrement, img, colorType 
             onDecrement();
           }}
           className={`
-            ${labelBaseClass} -top-1 -left-1 bg-red-500 text-white z-30 active:scale-75
+            ${labelBaseClass} -top-1 -left-1 bg-red-500 cursor-pointer text-white z-30 active:scale-75
             ${count > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-0 pointer-events-none'}
           `}
         >

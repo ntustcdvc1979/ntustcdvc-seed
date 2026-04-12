@@ -1,51 +1,68 @@
 import React from 'react';
 import { theme } from '../styles/theme';
 
-export default function DailyQuote({ currentQuote, onDraw, onOpenCollection }) {
+export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onCloseQuote }) {
   return (
-    <section className="mb-12 text-center">
-      {!currentQuote ? (
-        <button 
-          onClick={onDraw} 
-          style={{ 
-            backgroundColor: theme.yellow, 
-            boxShadow: `0 8px 0px 0px #d4a017`,
-          }}
-          className="w-full p-8 rounded-[2.5rem] text-white font-black text-2xl active:translate-y-1 active:shadow-none transition-all"
-        >
-          ✨ 抽取今日正能量 ✨
-          <p className="text-base font-bold opacity-70 mt-2">點擊領取仙佛慈語</p>
-        </button>
-      ) : (
-        <div className="space-y-4 animate-in zoom-in duration-300">
-          <div 
-            className="bg-white p-8 rounded-[2.5rem] border-4 text-center shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]"
-            style={{ borderColor: theme.yellow }}
-          >
-            <p className="text-2xl font-black leading-relaxed mb-4" style={{ color: theme.dark }}>
-              「{currentQuote.content}」
-            </p>
-            <p className="text-xl font-black" style={{ color: theme.green }}>
-              — {currentQuote.author}
-            </p>
-          </div>
+    <section className="text-center">
+      {/* 1. 主頁底部的抽取按鈕 */}
+      <button 
+        onClick={onDraw} 
+        style={{ 
+          backgroundColor: theme.yellow, 
+          boxShadow: `0 6px 0px 0px #d4a017`,
+        }}
+        className="cursor-pointer rounded-[2rem] text-white font-black text-xl active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3 border-4 border-black"
+      >
+        <span className="text-2xl">✨</span>
+        <div>
+           <p>領取仙佛慈語</p>
+           <p className="text-base font-bold">為種子灑上甘露水</p>
+        </div>
+        <span className="text-2xl">✨</span>
+      </button>
 
-          {/* 再抽一張與查看歷史紀錄 */}
-          <div className="flex gap-3">
+      {currentQuote && (
+        <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 text-left overflow-hidden">
+          <div className="bg-white w-full max-w-[380px] rounded-[2.5rem] p-8 border-4 border-black animate-in zoom-in duration-300 relative shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
+            {/* 關閉按鈕 */}
             <button 
-              onClick={onDraw}
-              style={{ backgroundColor: theme.green }}
-              className="flex-1 text-white py-3 rounded-2xl font-black text-sm shadow-[0_4px_0px_0px_#a5bc28] active:translate-y-1 active:shadow-none transition-all"
+              onClick={onCloseQuote} 
+              className="absolute top-4 right-6 font-black text-2xl p-2 cursor-pointer hover:opacity-50 transition-opacity"
             >
-              🔄 再抽一張
+              ✕
             </button>
-            <button 
-              onClick={onOpenCollection}
-              className="flex-1 bg-white border-2 py-3 rounded-2xl font-black text-sm transition-all"
-              style={{ borderColor: theme.dark, color: theme.dark }}
-            >
-              📚 歷史紀錄
-            </button>
+            
+            <div className="text-center space-y-6">
+              <div className="py-4">
+                <p className="text-2xl font-black leading-relaxed" style={{ color: theme.dark }}>
+                  「{currentQuote.content}」
+                </p>
+                <p className="text-xl font-black mt-4" style={{ color: theme.green }}>
+                  — {currentQuote.author}
+                </p>
+              </div>
+
+              {/* 功能按鈕組 */}
+              <div className="flex gap-3 pt-4">
+                <button 
+                  onClick={onDraw} 
+                  style={{ backgroundColor: theme.green }}
+                  className="flex-1 text-white cursor-pointer py-3 rounded-2xl font-black shadow-[0_4px_0px_0px_#a5bc28] active:translate-y-1 active:shadow-none transition-all"
+                >
+                  🔄 再抽一張
+                </button>
+                <button 
+                  onClick={() => {
+                    onOpenCollection();
+                    onCloseQuote();
+                  }} 
+                  className="flex-1 bg-white cursor-pointer border-2 py-3 rounded-2xl font-black transition-all hover:bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none" 
+                  style={{ borderColor: theme.dark, color: theme.dark }}
+                >
+                  📚 歷史紀錄
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

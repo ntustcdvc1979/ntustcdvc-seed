@@ -19,9 +19,12 @@ const renderDescription = (text) => {
 
 export default function EventModal({ events, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
-      <div className="bg-white rounded-[3rem] w-full max-w-sm max-h-[80vh] overflow-y-auto border-4 p-8 relative" style={{ borderColor: theme.green }}>
-        <button onClick={onClose} className="absolute top-6 right-6 font-black text-2xl" style={{ color: theme.dark }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-[100] animate-in fade-in duration-300">
+      <div
+        className="bg-white rounded-[3rem] w-full max-w-[400px] max-h-[80vh] overflow-y-auto border-4 border-black p-8 relative animate-in zoom-in duration-300 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
+        style={{ borderColor: theme.yellow }}  
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 cursor-pointer hover:opacity-50 transition-opacity font-black text-2xl" style={{ color: theme.dark }}>
           ✕
         </button>
         <h3 className="text-3xl font-black mb-8 border-b-4 pb-2" style={{ borderColor: theme.yellow, color: theme.dark }}>

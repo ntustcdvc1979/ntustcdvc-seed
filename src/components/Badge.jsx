@@ -40,7 +40,7 @@ export default function Badge({ badgeData }) {
       {/* 放大後的 Lightbox */}
       {isZoomed && (
         <div 
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-8 animate-in fade-in duration-300"
+          className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-8 animate-in fade-in duration-300"
           onClick={() => setIsZoomed(false)}
         >
           <div className="relative flex flex-col items-center max-w-xs animate-in zoom-in duration-300">
