@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import BadgeUnlockModal from './components/BadgeUnlockModal';
 import { auth, db, provider } from './firebase-config';
 import { signInWithPopup, signOut, signInWithRedirect, getRedirectResult } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs } from 'firebase/firestore';
 import { FaInstagram, FaFacebook, FaLine } from 'react-icons/fa';
+import BackgroundImg from './assets/background.webp';
 
 import DailyQuote from './components/DailyQuote'
 import EventModal from './components/EventModal';
-import Badge from './components/Badge';
 import SkillTree from './components/SkillTree';
 import CollectionModal from './components/CollectionModal';
 import AchievementList from './components/AchievementList';
@@ -72,6 +72,7 @@ function App() {
         stats: { ...defaultStats, ...data.stats },
         badges: data.badges || [],
         collection: data.collection || [],
+        favorite: data.favorite || [],
         shortId: data.shortId || uid.substring(0, 6).toLowerCase()
       });
     } else {
@@ -81,6 +82,7 @@ function App() {
         isTaoQin: true,
         stats: defaultStats,
         collection: [],
+        favorite: [],
         badges: [],
         lastCheckIn: "",
         shortId: uid.substring(0, 6).toLowerCase(),
@@ -173,12 +175,27 @@ function App() {
     const today = new Date().toLocaleDateString();
     const hasWateredToday = userData.lastCheckIn === today;
     const newExp = hasWateredToday ? (userData.exp || 0) : (userData.exp || 0) + 1;
+    
     const filtered = allQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
     if (filtered.length === 0) return;
+    
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
     setCurrentQuote(randomQuote);
-    setUserData(prev => ({ ...prev, collection: Array.from(new Set([...prev.collection, randomQuote.id])), exp: newExp, lastCheckIn: today }));
-    await setDoc(doc(db, 'users', user.uid), { collection: arrayUnion(randomQuote.id), exp: newExp, lastCheckIn: today }, { merge: true });
+
+    const newCollection = Array.from(new Set([...(userData.collection || []), randomQuote.id]));
+    
+    setUserData(prev => ({ 
+      ...prev, 
+      collection: newCollection,
+      exp: newExp, 
+      lastCheckIn: today 
+    }));
+
+    await updateDoc(doc(db, 'users', user.uid), { 
+      collection: arrayUnion(randomQuote.id), 
+      exp: newExp,
+      lastCheckIn: today 
+    });
   };
 
   const incrementSkill = (skill) => {
@@ -206,6 +223,7 @@ function App() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-white">
       <div className="flex items-center gap-4 mb-4">
         <img src={Logos.Main} alt="Logo" className="h-20 object-contain" />
+        <img src={Logos.Small} alt="Small Logo" className="h-12 object-contain" />
       </div>
       <h1 className="text-4xl font-black mb-8 text-black" style={{ color: '#000000' }}>🌱 崇德心靈種子</h1>
       <button onClick={handleLogin} className="bg-black text-white px-12 py-4 rounded-full font-bold">開啟探索</button>
@@ -213,7 +231,14 @@ function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] flex justify-center items-center">
+    <div 
+      className="min-h-screen w-full flex justify-center items-center bg-repeat bg-fixed" 
+      style={{ 
+        backgroundImage: `url(${BackgroundImg})`, 
+        backgroundSize: '400px',
+        backgroundPosition: 'center'
+      }}
+    >
       <div className="relative w-full max-w-[450px] aspect-[1536/2752] bg-transparent shadow-2xl overflow-hidden flex flex-col p-6 border-x-4 border-black/20 transition-all duration-700">
         
         <header className="relative z-30 flex justify-between items-start mb-2">
@@ -233,11 +258,6 @@ function App() {
                 </h2>
               </button>
             )}
-            <div className="flex flex-wrap gap-1">
-              {!viewingUser && titleConfig
-                .filter((t) => (viewingUser ? viewingUser.badges : userData?.badges)?.includes(t.name))
-                .map((t) => <Badge key={t.name} badgeData={t} />)}
-            </div>
           </div>
 
           {!viewingUser && (
@@ -245,8 +265,9 @@ function App() {
               <div className="flex gap-2">
                 {[
                   { label: '成就', icon: '🏆', action: () => setShowAchievementList(true) },
+                  { label: '慈語', icon: '📚', action: () => setShowCollection(true) },
                   { label: '活動', icon: '📅', action: openEventModal },
-                  { label: '朋友', icon: '👥', action: () => setShowFriendList(true) }
+                  { label: '排行榜', icon: '👥', action: () => setShowFriendList(true) }
                 ].map(btn => (
                   <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1">
                     <div className="text-xl p-2 cursor-pointer bg-white/90 rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all">
@@ -286,7 +307,8 @@ function App() {
             <div className="w-full flex justify-center">
               <div className="w-[85%] scale-90 flex justify-center origin-center transition-all duration-300 hover:translate-y-[-4px] hover:scale-95">
                 {/* 這裡只傳入按鈕 logic */}
-                <DailyQuote 
+                <DailyQuote
+                  userData={userData}
                   currentQuote={null} // 這裡不處理彈窗展示
                   onDraw={drawCard} 
                 />
@@ -298,19 +320,39 @@ function App() {
         {/* 仙佛慈語視窗 */}
         {currentQuote && (
           <DailyQuote 
+            userData={userData}
             currentQuote={currentQuote} 
             onDraw={drawCard} 
-            onOpenCollection={() => setShowCollection(true)}
+            onOpenCollection={(quoteId) => {
+              const isFav = userData.favorite?.includes(quoteId);
+              const userRef = doc(db, 'users', user.uid);
+              
+              if (isFav) {
+                updateDoc(userRef, { favorite: arrayRemove(quoteId) });
+                setUserData(prev => ({
+                  ...prev,
+                  favorite: prev.favorite.filter(id => id !== quoteId)
+                }));
+              } else {
+                updateDoc(userRef, { favorite: arrayUnion(quoteId) });
+                setUserData(prev => ({
+                  ...prev,
+                  favorite: [...(prev.favorite || []), quoteId]
+                }));
+              }
+            }}
             onCloseQuote={() => setCurrentQuote(null)} 
           />
         )}
 
-        {/* 歷史慈語視窗 */}
+        {/* 歷史慈語視窗*/}
         {showCollection && (
           <CollectionModal 
-            collection={userData.collection} 
+            favorite={userData.favorite || []}  // 傳入收藏標記
+            collection={userData.collection || []}  // 傳入歷史紀錄
             allQuotes={allQuotes} 
             onClose={() => setShowCollection(false)} 
+            setUserData={setUserData}
           />
         )}
 

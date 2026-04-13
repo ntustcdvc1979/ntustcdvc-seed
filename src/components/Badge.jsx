@@ -2,46 +2,40 @@ import React, { useState } from 'react';
 import { BadgeImages } from '../assets/AssetManager';
 import { theme } from '../styles/theme';
 
-export default function Badge({ badgeData }) {
-  const [isZoomed, setIsZoomed] = useState(false);
-  const { name, description } = badgeData;
+export default function Badge({ badgeData, isDirectOpen = false, onClose, isClickable = true }) {
+  const [isZoomed, setIsZoomed] = useState(isDirectOpen);
+  const { name, description, isEarned } = badgeData;
   const imgSrc = BadgeImages[name];
+
+  const handleBadgeClick = () => {
+    if (isClickable) {
+      setIsZoomed(true);
+    }
+  };
 
   return (
     <>
       <div 
-        onClick={() => setIsZoomed(true)}
+        onClick={handleBadgeClick}
         className="flex flex-col items-center group cursor-pointer active:scale-95 transition-all"
       >
         {/* 成就圖 */}
-        <div className="w-24 h-24 flex items-center justify-center">
-          {imgSrc ? (
-            <img 
-              src={imgSrc} 
-              alt={name} 
-              className="w-full h-full object-contain drop-shadow-[0_8px_12px_rgba(0,0,0,0.4)]" 
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-black border-4 border-white flex items-center justify-center shadow-lg">
-              <span className="text-[12px] text-white font-black text-center px-1">{name}</span>
-            </div>
-          )}
-        </div>
-
-        {/* 名稱標籤 */}
-        <div 
-          className="mt-2 text-[15px] font-black px-4 py-1.5 rounded-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] border-2 border-white transform -rotate-1 group-hover:rotate-0 transition-transform"
-          style={{ backgroundColor: theme.green, color: '#fff' }}
-        >
-          {name}
-        </div>
+        <img 
+          src={imgSrc} 
+          alt={name} 
+          // 根據是否已獲得 (isEarned) 來決定是否加上灰色濾鏡
+          className={`w-24 h-24 object-contain transition-all duration-500 ${isEarned ? '' : 'grayscale opacity-30'}`} 
+        />
       </div>
 
       {/* 放大後的 Lightbox */}
-      {isZoomed && (
+      {isZoomed && isClickable && (
         <div 
           className="fixed inset-0 z-[2000] flex flex-col items-center justify-center bg-black/90 backdrop-blur-md p-8 animate-in fade-in duration-300"
-          onClick={() => setIsZoomed(false)}
+          onClick={() => {
+            setIsZoomed(false);
+            onClose && onClose();
+          }}
         >
           <div className="relative flex flex-col items-center max-w-xs animate-in zoom-in duration-300">
             <img 

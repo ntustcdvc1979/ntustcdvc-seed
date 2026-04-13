@@ -1,7 +1,9 @@
 import React from 'react';
 import { theme } from '../styles/theme';
 
-export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onCloseQuote }) {
+export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onCloseQuote, userData }) {
+  const isFavorite = userData?.favorite?.includes(currentQuote?.id);
+
   return (
     <section className="text-center">
       {/* 1. 主頁底部的抽取按鈕 */}
@@ -24,7 +26,14 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onC
       {currentQuote && (
         <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 text-left overflow-hidden">
           <div className="bg-white w-full max-w-[380px] rounded-[2.5rem] p-8 border-4 border-black animate-in zoom-in duration-300 relative shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]">
-            {/* 關閉按鈕 */}
+            
+            {/* 收藏狀態標籤 */}
+            {isFavorite && (
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#ff4757] text-white px-4 py-1 rounded-full font-black text-xs shadow-lg animate-bounce">
+                已加入收藏 ❤️
+              </div>
+            )}
+
             <button 
               onClick={onCloseQuote} 
               className="absolute top-4 right-6 font-black text-2xl p-2 cursor-pointer hover:opacity-50 transition-opacity"
@@ -42,7 +51,6 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onC
                 </p>
               </div>
 
-              {/* 功能按鈕組 */}
               <div className="flex gap-3 pt-4">
                 <button 
                   onClick={onDraw} 
@@ -51,15 +59,18 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onC
                 >
                   🔄 再抽一張
                 </button>
+                
+                {/* 收藏按鈕：點擊後會切換 collection 陣列 */}
                 <button 
-                  onClick={() => {
-                    onOpenCollection();
-                    onCloseQuote();
-                  }} 
-                  className="flex-1 bg-white cursor-pointer border-2 py-3 rounded-2xl font-black transition-all hover:bg-gray-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none" 
-                  style={{ borderColor: theme.dark, color: theme.dark }}
+                  onClick={() => onOpenCollection(currentQuote.id)} 
+                  className="w-16 flex cursor-pointer items-center justify-center rounded-2xl border-4 border-black text-2xl transition-all active:scale-90"
+                  style={{ 
+                    backgroundColor: '#fff', 
+                    color: isFavorite ? '#fff' : '#ff4757',
+                    borderColor: '#ff4757'
+                  }}
                 >
-                  📚 歷史紀錄
+                  {isFavorite ? '❤️' : '🤍'}
                 </button>
               </div>
             </div>
