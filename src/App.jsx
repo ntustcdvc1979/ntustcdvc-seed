@@ -279,7 +279,7 @@ function App() {
               </div>
 
               {/* 學修講辦 */}
-              <div className="flex gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {['學', '修', '講', '辦'].map((cat) => (
                   <button key={cat} onClick={() => setActiveCategory(cat)} className="flex flex-col items-center gap-0.5">
                     <div className="w-9 h-9 cursor-pointer rounded-full border-2 border-black bg-white/90 flex items-center justify-center text-base shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 transition-all">

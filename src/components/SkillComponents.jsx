@@ -1,11 +1,10 @@
 import { theme } from "../styles/theme";
 
 export function Quadrant({ title, motto, icon, colorType, children }) {
-  const borderColor = colorType === 'green' ? 'border-[#bad32d]' : 'border-[#f5be30]';
   const bgColor = colorType === 'green' ? 'bg-[#bad32d]/5' : 'bg-[#f5be30]/5';
 
   return (
-    <div className={`p-6 rounded-[2.5rem] border-4 ${borderColor} ${bgColor} relative flex flex-col items-center`}>
+    <div className={`p-6 rounded-[2.5rem] ${bgColor} relative flex flex-col items-center`}>
       <div className="flex items-center gap-3 mb-6 w-full justify-center">
         <span className="text-3xl">{icon}</span>
         <div className="text-center">

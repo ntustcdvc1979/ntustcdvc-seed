@@ -2,14 +2,16 @@ import React from 'react';
 // 引入四階段圖片
 import SeedImg from '../assets/seed.webp';
 import SproutImg from '../assets/sprout.webp';
+import GrowthImg from '../assets/growth.webp';
 import BudImg from '../assets/bud.webp';
 import BloomImg from '../assets/bloom.webp';
 
 export default function SeedGrowth({ exp = 0, isOwner }) {
   const getStageData = (exp) => {
-    if (exp >= 30) return { img: BloomImg, stage: "開花" };
-    if (exp >= 15) return { img: BudImg, stage: "結苞" };
-    if (exp >= 5)  return { img: SproutImg, stage: "發芽" };
+    if (exp >= 60) return { img: BloomImg, stage: "綻放" };
+    if (exp >= 45) return { img: BudImg, stage: "含苞待放" };
+    if (exp >= 15) return { img: GrowthImg, stage: "成長" };
+    if (exp >= 5)  return { img: SproutImg, stage: "幼苗" };
     return { img: SeedImg, stage: "種子" };
   };
 
