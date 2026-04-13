@@ -39,6 +39,12 @@ function App() {
 
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
 
+  // 比對今天日期與資料庫紀錄的日期
+  const hasWateredToday = useMemo(() => {
+    const today = new Date().toLocaleDateString();
+    return userData?.lastCheckIn === today;
+  }, [userData?.lastCheckIn]);
+
   const openEventModal = async () => {
     const querySnapshot = await getDocs(collection(db, 'events'));
     setEvents(querySnapshot.docs.map(doc => doc.data()));
@@ -296,7 +302,11 @@ function App() {
         {/* --- 核心展示區 --- */}
         <div className="absolute inset-0 z-10 h-full w-full">
           {!viewingUser ? (
-            <SeedGrowth exp={userData?.exp} isOwner={true} />
+            <SeedGrowth
+              exp={userData?.exp}
+              isOwner={true}
+              hasWateredToday={hasWateredToday}
+            />
           ) : (
             <VisitorProfile visitorData={viewingUser} />
           )}

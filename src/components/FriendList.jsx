@@ -27,12 +27,11 @@ export default function FriendList({ currentUser, onVisit, onClose, setUserData 
         }
         setFollowingList(followedDocs);
 
-        // 2. 載入前 20 名等級最高玩家 (排除自己)
-        const qTop = query(collection(db, 'users'), orderBy("exp", "desc"), limit(25)); // 稍微多抓一點以防扣除自己後不足20
+        // 2. 載入前 20 名等級最高玩家
+        const qTop = query(collection(db, 'users'), orderBy("exp", "desc"), limit(20));
         const snapTop = await getDocs(qTop);
         const topDocs = snapTop.docs
           .map(d => ({ uid: d.id, ...d.data() }))
-          .filter(u => u.uid !== auth.currentUser?.uid) // 排除自己
           .slice(0, 20); // 取前20名
         
         setTopPlayers(topDocs);
@@ -138,27 +137,34 @@ export default function FriendList({ currentUser, onVisit, onClose, setUserData 
 // 卡片組件保持不變，包含等級顯示
 function UserCard({ player, isFollowing, toggleFollow, onVisit }) {
   const level = Math.floor((player.exp || 0) / 5) + 1;
+  // 判斷是否為使用者本人
+  const isMe = player.uid === auth.currentUser?.uid;
   
   return (
     <div className="p-3 border-2 border-black rounded-2xl flex justify-between items-center bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
       <div className="flex flex-col ml-1">
-        <p className="font-black text-sm truncate max-w-[120px]">{player.name}</p>
+        <p className="font-black text-sm truncate max-w-[120px]">{player.name} {isMe && "(你)"}</p>
         <span className="text-sm font-bold text-[#bad32d]">LV.{level}</span>
       </div>
       <div className="flex gap-2">
-        <button 
-          onClick={() => toggleFollow(player)}
-          className="border-2 border-black cursor-pointer px-3 py-1 rounded-xl font-black text-sm"
-          style={{ backgroundColor: isFollowing ? '#f5be30' : '#bad32d', color: 'white' }}
-        >
-          {isFollowing ? "取消" : "追蹤"}
-        </button>
-        <button 
-          onClick={() => onVisit(player)}
-          className="bg-white border-2 border-black cursor-pointer px-3 py-1 rounded-xl font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-        >
-          參觀
-        </button>
+        {!isMe && (
+          // 如果是別人，才顯示按鈕
+          <>
+            <button 
+              onClick={() => toggleFollow(player)}
+              className="border-2 border-black cursor-pointer px-3 py-1 rounded-xl font-black text-sm"
+              style={{ backgroundColor: isFollowing ? '#f5be30' : '#bad32d', color: 'white' }}
+            >
+              {isFollowing ? "取消" : "追蹤"}
+            </button>
+            <button 
+              onClick={() => onVisit(player)}
+              className="bg-white border-2 border-black cursor-pointer px-3 py-1 rounded-xl font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+            >
+              參觀
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

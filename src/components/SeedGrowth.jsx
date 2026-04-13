@@ -6,7 +6,7 @@ import GrowthImg from '../assets/growth.webp';
 import BudImg from '../assets/bud.webp';
 import BloomImg from '../assets/bloom.webp';
 
-export default function SeedGrowth({ exp = 0, isOwner }) {
+export default function SeedGrowth({ exp = 0, isOwner, hasWateredToday }) {
   const getStageData = (exp) => {
     if (exp >= 60) return { img: BloomImg, stage: "綻放" };
     if (exp >= 45) return { img: BudImg, stage: "含苞待放" };
@@ -28,7 +28,22 @@ export default function SeedGrowth({ exp = 0, isOwner }) {
       {/* 2. UI 層：資訊懸浮 */}
       <div className="relative z-20 flex flex-col items-center h-full w-full">
         {isOwner && (
-          <div className="mt-70 animate-bounce text-4xl opacity-80 drop-shadow-md">💧</div>
+          <div className="mt-70 flex flex-col items-center">
+            {!hasWateredToday ? (
+              /* 還沒澆水：顯示動畫水滴 */
+              <div className="animate-bounce text-4xl opacity-80 drop-shadow-md select-none">
+                💧
+              </div>
+            ) : (
+              /* 已經澆水：顯示打勾與提示文字 */
+              <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                <div className="text-3xl drop-shadow-md">✔️</div>
+                <div className="mt-2 bg-black/50 backdrop-blur-sm px-4 py-1 rounded-full border border-white/30">
+                  <p className="text-white font-black text-xs tracking-widest">今日已澆水</p>
+                </div>
+              </div>
+            )}
+          </div>
         )}
         
         {/* 底部等級資訊 - 移到下方確保不擋住圖片中心 */}
