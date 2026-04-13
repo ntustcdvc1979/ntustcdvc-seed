@@ -76,7 +76,7 @@ export const getTitleConfig = (userData) => [
   },
   { 
     name: "赤子之心", 
-    requirement: () => (userData?.stats?.參與營隊志工 >= 1),
+    requirement: () => (userData?.stats?.營隊志工 >= 1),
     description: "在孩子們的純真笑臉中，看見最初的自己。",
     goal: "參與營隊志工1次",
     isHidden: false, // 一般成就

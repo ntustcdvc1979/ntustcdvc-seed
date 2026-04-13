@@ -253,7 +253,7 @@ function App() {
                 onClick={() => setShowSettings(true)}
                 className="group flex flex-col items-start"
               >
-                <h2 className="text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-transparent group-hover:border-black transition-all" style={{ color: theme.dark }}>
+                <h2 className="text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" style={{ color: theme.dark }}>
                   {user.displayName} ⚙️
                 </h2>
               </button>
