@@ -4,17 +4,17 @@ export const isMorningTime = () => {
 };
 
 export const getTitleConfig = (userData) => [
+  // { 
+  //   name: "筆耕福田", 
+  //   requirement: () => (userData?.stats?.抄寫經典 >= 5),
+  //   description: "一筆一劃皆是修行，將聖人的智慧刻在心版上，播下福慧種子。",
+  //   goal: "累計抄寫經典達5次",
+  //   isHidden: false, // 一般成就
+  // },
   { 
-    name: "筆耕福田", 
-    requirement: () => (userData?.stats?.抄寫經典 >= 5),
-    description: "一筆一劃皆是修行，將聖人的智慧刻在心版上，播下福慧種子。",
-    goal: "累計抄寫經典達5次",
-    isHidden: false, // 一般成就
-  },
-  { 
-    name: "聞法知音", 
+    name: "聞道不捨", 
     requirement: () => (userData?.stats?.參與研究班 >= 10),
-    description: "收攝心神，靜聽妙理。聖人的教誨如甘露法雨，滋潤枯槁的心靈，讓智慧的種子悄然萌芽。",
+    description: "聞道不捨效聖賢，孜孜不倦向道專；由淺入深來研理，追根究底而溯源。",
     goal: "累計參與研究班達10次",
     isHidden: false, // 一般成就
   },
