@@ -39,13 +39,13 @@ export const getTitleConfig = (userData) => [
     goal: "累計整理環境達7次",
     isHidden: false, // 一般成就
   },
-  { 
-    name: "廣結善緣", 
-    requirement: () => (userData?.stats?.分享好文 >= 20),
-    description: "一燈能除千年暗，一智能滅萬年愚。感謝你將智慧的種子播撒給更多人。🕊️",
-    goal: "累計分享好文達20次",
-    isHidden: false, // 一般成就
-  },
+  // { 
+  //   name: "廣結善緣", 
+  //   requirement: () => (userData?.stats?.分享好文 >= 20),
+  //   description: "一燈能除千年暗，一智能滅萬年愚。感謝你將智慧的種子播撒給更多人。🕊️",
+  //   goal: "累計分享好文達20次",
+  //   isHidden: false, // 一般成就
+  // },
   { 
     name: "心靈導師", 
     requirement: () => (userData?.stats?.關心成全一個人 >= 20),

@@ -378,18 +378,18 @@ function App() {
         {activeCategory && (
           <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-[400px] rounded-[3rem] p-8 max-h-[85vh] overflow-y-auto border-4 border-black relative animate-in zoom-in duration-300">
-              <button 
-                onClick={() => setActiveCategory(null)} 
-                className="absolute top-6 right-6 font-black text-xl p-2 cursor-pointer hover:opacity-50 transition-opacity"
-              >
-                ✕
-              </button>
               <SkillTree 
                 category={activeCategory} 
                 userData={userData} 
                 incrementSkill={incrementSkill} 
                 decrementSkill={decrementSkill} 
               />
+              <button 
+                onClick={() => setActiveCategory(null)} 
+                className="absolute top-6 right-6 font-black text-xl p-2 cursor-pointer hover:opacity-50 transition-opacity"
+              >
+                ✕
+              </button>
             </div>
           </div>
         )}
