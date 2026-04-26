@@ -83,9 +83,9 @@ export const getTitleConfig = (userData) => [
   },
   {
     name: "曙光覺醒者",
-    requirement: () => (isMorningTime() && userData?.stats?.頌經 > 0),
+    requirement: () => (isMorningTime() && userData?.stats?.誦經 > 0),
     description: "一日之計在於晨；一歲之計在於春；一生之計在於勤。",
-    goal: "在早上5點至8點間頌經",
+    goal: "在早上5點至8點間誦經",
     isHidden: true, // 隱藏成就
   },
 ];
