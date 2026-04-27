@@ -1,12 +1,12 @@
 import React from 'react';
 import { Quadrant, SkillCircle } from './SkillComponents';
 
-export default function SkillTree({ category, userData, incrementSkill, decrementSkill }) {
+export default function SkillTree({ category, userData, incrementSkill, decrementSkill, handleChant }) {
   return (
     <div className="space-y-10">
       {category === '學' && (
         <Quadrant title="智慧增長 (學)" motto="學道越學越和氣" icon="📖" colorType="green">
-          <SkillCircle name="誦經" count={userData?.stats?.誦經} onClick={() => incrementSkill('誦經')} onDecrement={() => decrementSkill('誦經')} img="📿" colorType="green" />
+          <SkillCircle name="誦經" count={userData?.stats?.誦經} onClick={handleChant} onDecrement={() => decrementSkill('誦經')} img="📿" colorType="green" />
           <SkillCircle name="抄寫經典" count={userData?.stats?.抄寫經典} onClick={() => incrementSkill('抄寫經典')} onDecrement={() => decrementSkill('抄寫經典')} img="✍️" colorType="green" />
           <SkillCircle name="參與研究班" count={userData?.stats?.參與研究班} onClick={() => incrementSkill('參與研究班')} onDecrement={() => decrementSkill('參與研究班')} img="🏫" colorType="green" />
           <SkillCircle name="研讀聖訓經典" count={userData?.stats?.研讀聖訓經典} onClick={() => incrementSkill('研讀聖訓經典')} onDecrement={() => decrementSkill('研讀聖訓經典')} img="📜" colorType="green" />

@@ -15,7 +15,7 @@ import SeedGrowth from './components/SeedGrowth';
 import FriendList from './components/FriendList';
 import VisitorProfile from './components/VisitorProfile';
 import SettingsModal from './components/SettingsModal';
-import { getTitleConfig } from './utils/gameLogic';
+import { isMorningTime, getTitleConfig } from './utils/gameLogic';
 import { Logos } from './assets/AssetManager';
 import { theme } from './styles/theme';
 
@@ -100,6 +100,49 @@ function App() {
     }
   };
 
+  const handleChant = async () => {
+    if (!userData || !user) return;
+
+    const prevCount = userData?.stats?.誦經 || 0;
+    const newCount = prevCount + 1;
+
+    const updatedUserData = {
+      ...userData,
+      stats: {
+        ...userData.stats,
+        誦經: newCount,
+      },
+    };
+
+    // ✅ 是否已經有這個成就
+    const alreadyUnlocked = userData?.badges?.includes("曙光覺醒者");
+
+    // ✅ 當下判斷（關鍵）
+    const shouldUnlock =
+      isMorningTime() &&
+      !alreadyUnlocked;
+
+    // 👉 先更新本地 state（包含 stats）
+    setUserData(updatedUserData);
+
+    // ✅ 如果觸發成就
+    if (shouldUnlock) {
+      // 🎉 動畫
+      setUnlockedBadgeName("曙光覺醒者");
+
+      // 🔥 更新 Firestore
+      await updateDoc(doc(db, "users", user.uid), {
+        badges: arrayUnion("曙光覺醒者"),
+      });
+
+      // 🔄 同步到 local state
+      setUserData((prev) => ({
+        ...prev,
+        badges: [...(prev.badges || []), "曙光覺醒者"],
+      }));
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     const initializeAuth = async () => {
@@ -139,7 +182,10 @@ function App() {
 
   useEffect(() => {
     if (!userData || !userData.stats || !user) return;
-    const currentBadgeNames = titleConfig.filter((t) => t.requirement()).map((t) => t.name);
+    const currentBadgeNames = titleConfig
+      .filter((t) => t.name !== "曙光覺醒者")
+      .filter((t) => t.requirement())
+      .map((t) => t.name);
     if (!hasInitializedBadges.current) {
       prevBadgeNamesRef.current = currentBadgeNames;
       hasInitializedBadges.current = true;
@@ -382,7 +428,8 @@ function App() {
                 category={activeCategory} 
                 userData={userData} 
                 incrementSkill={incrementSkill} 
-                decrementSkill={decrementSkill} 
+                decrementSkill={decrementSkill}
+                handleChant={handleChant}
               />
               <button 
                 onClick={() => setActiveCategory(null)} 
