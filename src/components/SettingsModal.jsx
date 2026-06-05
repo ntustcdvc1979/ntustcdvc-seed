@@ -1,7 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaInstagram, FaFacebook, FaLine } from 'react-icons/fa';
+import { db } from '../firebase-config';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth } from '../firebase-config';
 
-export default function SettingsModal({ onClose, onSignOut }) {
+export default function SettingsModal({ onClose, onSignOut, userData, setUserData }) {
+  const [newName, setNewName] = useState(userData?.name || "");
+
+  const handleUpdateName = async () => {
+    if (!newName.trim()) return;
+    try {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, { name: newName });
+      
+      // 更新本地狀態
+      setUserData(prev => ({ ...prev, name: newName }));
+    } catch (error) {
+      console.error("更新失敗", error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-end">
       <div className="bg-white w-full max-w-[450px] mx-auto rounded-t-[3rem] p-10 border-t-8 border-black animate-in slide-in-from-bottom duration-300">
@@ -11,6 +29,25 @@ export default function SettingsModal({ onClose, onSignOut }) {
         </div>
 
         <div className="space-y-8">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-black text-gray-500">修改暱稱</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                maxLength={10}
+                className="flex-1 p-3 border-4 border-black rounded-xl font-bold"
+              />
+              <button 
+                onClick={handleUpdateName}
+                className="bg-black text-white px-4 rounded-xl font-black cursor-pointer"
+              >
+                儲存
+              </button>
+            </div>
+          </div>
+          
           {/* 社群連結部分 */}
           <div className="flex flex-col items-center gap-4">
             <p className="text-xs font-black uppercase tracking-[0.2em]">追蹤台科大崇德志工社，獲取更多活動資訊</p>

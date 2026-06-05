@@ -316,8 +316,9 @@ function App() {
                 onClick={() => setShowSettings(true)}
                 className="group flex flex-col items-start"
               >
-                <h2 className="text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]" style={{ color: theme.dark }}>
-                  {user.displayName} ⚙️
+                <h2 className="w-[10ch] text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center" style={{ color: theme.dark }}>
+                  <span className="truncate">{userData?.name || "用戶"}</span>
+                  <span>⚙️</span>
                 </h2>
               </button>
             )}
@@ -426,6 +427,8 @@ function App() {
         {/* 設定彈窗 */}
         {showSettings && (
           <SettingsModal 
+            userData={userData} // 傳入用戶資料
+            setUserData={setUserData} // 傳入更新狀態的方法
             onClose={() => setShowSettings(false)} 
             onSignOut={() => signOut(auth)} 
           />
