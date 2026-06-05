@@ -37,11 +37,12 @@ async function uploadEvents() {
 
   for (const record of records) {
     const fields = record.split('[[END_FIELD]]');
-    if (fields.length < 3) continue;
+    if (fields.length < 4) continue;
 
     const title = fields[0].trim();
     const description = fields[1].trim();
     const posterUrlFromTxt = fields[2].trim(); // txt 裡面的 Drive 分享連結
+    const endDate = fields[3].trim();
 
     console.log(`正在處理活動：${title}...`);
 
@@ -53,6 +54,7 @@ async function uploadEvents() {
       title,
       description,
       posterUrl: finalPosterUrl, // 存入轉換後的直接連結
+      endDate: endDate,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     

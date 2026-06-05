@@ -18,6 +18,14 @@ const renderDescription = (text) => {
 };
 
 export default function EventModal({ events, onClose }) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // 過濾邏輯：若 endDate 存在且小於今天，則過濾掉
+  const activeEvents = events.filter(ev => {
+    if (!ev.endDate) return true; // 如果沒有設定期限，預設為顯示
+    return ev.endDate >= today;
+  });
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-[100] animate-in fade-in duration-300">
       <div
@@ -32,7 +40,7 @@ export default function EventModal({ events, onClose }) {
         </h3>
         
         <div className="space-y-10">
-          {events.length > 0 ? events.map((ev, idx) => (
+          {activeEvents.length > 0 ? activeEvents.map((ev, idx) => (
             <div key={idx} className="space-y-6 border-b-2 border-black pb-8 last:border-0">
               
               {ev.posterUrl && ev.posterUrl.trim() !== "" && (
