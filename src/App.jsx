@@ -223,12 +223,23 @@ function App() {
   };
 
   const drawCard = async () => {
-    if (allQuotes.length === 0 || !userData || !user) return;
+    let newQuotes = allQuotes;
+    if (allQuotes.length === 0) {
+        const snapshot = await getDocs(collection(db, 'daily_quotes'));
+        newQuotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAllQuotes(newQuotes);
+        if (newQuotes.length === 0) {
+            return;
+        }
+    }
+    if (newQuotes.length === 0 || !userData || !user) {
+      return;
+    }
     const today = new Date().toLocaleDateString();
     const hasWateredToday = userData.lastCheckIn === today;
     const newExp = hasWateredToday ? (userData.exp || 0) : (userData.exp || 0) + 1;
     
-    const filtered = allQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
+    const filtered = newQuotes.filter(item => userData?.isTaoQin ? true : item.type === 'non_Taoqin');
     if (filtered.length === 0) return;
     
     const randomQuote = filtered[Math.floor(Math.random() * filtered.length)];
