@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../styles/theme';
+import { renderContent } from './utils';
 
 export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onCloseQuote, userData }) {
   const isFavorite = userData?.favorite?.includes(currentQuote?.id);
@@ -44,7 +45,7 @@ export default function DailyQuote({ currentQuote, onDraw, onOpenCollection, onC
             <div className="text-center space-y-6">
               <div className="py-4">
                 <p className="text-2xl font-black leading-relaxed" style={{ color: theme.dark }}>
-                  「{currentQuote.content}」
+                  「{renderContent(currentQuote.content)}」
                 </p>
                 <p className="text-xl font-black mt-4" style={{ color: theme.green }}>
                   — {currentQuote.author}

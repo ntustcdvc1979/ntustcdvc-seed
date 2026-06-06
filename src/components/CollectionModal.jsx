@@ -2,6 +2,7 @@ import React from 'react';
 import { theme } from '../styles/theme';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, auth } from '../firebase-config';
+import { renderContent } from './utils';
 
 export default function CollectionModal({ collection, favorite, allQuotes, onClose, setUserData }) {
   const myHistoryQuotes = allQuotes.filter(q => collection?.includes(q.id));
@@ -58,7 +59,7 @@ export default function CollectionModal({ collection, favorite, allQuotes, onClo
                 </div>
                 
                 <p className={`text-sm font-bold mb-2 ${isFav ? 'text-black' : 'text-gray-500'}`}>
-                  「{q.content}」
+                  「{renderContent(q.content)}」
                 </p>
                 <p className="text-xs font-black text-right" style={{ color: theme.green }}>— {q.author}</p>
               </div>

@@ -12,6 +12,8 @@ import schoolImg from './school.webp'
 import mainLogo from './NewLogo.png';
 import smallLogo from './small.png';
 
+import godImg from './god.webp'
+
 export const BadgeImages = {
   "草食動物": veganImg,
   "特級廚師": chefImg,
@@ -29,3 +31,5 @@ export const Logos = {
   Main: mainLogo,
   Small: smallLogo
 };
+
+export const godText = godImg
