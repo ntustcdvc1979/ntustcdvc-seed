@@ -15,6 +15,7 @@ import SeedGrowth from './components/SeedGrowth';
 import FriendList from './components/FriendList';
 import VisitorProfile from './components/VisitorProfile';
 import SettingsModal from './components/SettingsModal';
+import ChallengeModal from './components/ChallengeModal';
 import { isMorningTime, getTitleConfig } from './utils/gameLogic';
 import { Logos } from './assets/AssetManager';
 import { theme } from './styles/theme';
@@ -36,6 +37,8 @@ function App() {
   const [showFriendList, setShowFriendList] = useState(false);
   const [activeCategory, setActiveCategory] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [allChallenges, setAllChallenges] = useState([]);
+  const [currentChallenge, setCurrentChallenge] = useState(null);
 
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
 
@@ -174,6 +177,13 @@ function App() {
         }
       } catch (err) { console.error(err); }
 
+      try {
+        const challengeSnapshot = await getDocs(collection(db, 'challenges'));
+        if (isMounted) {
+          setAllChallenges(challengeSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+      } catch (err) { console.error(err); }
+
       return unsubscribe;
     };
     initializeAuth();
@@ -275,6 +285,20 @@ function App() {
     updateDoc(doc(db, 'users', user.uid), { [`stats.${skill}`]: newCount });
   };
 
+  const drawChallenge = async () => {
+    let newChallenges = allChallenges;
+    if (allChallenges.length === 0) {
+      const snapshot = await getDocs(collection(db, 'challenges'));
+      newChallenges = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAllChallenges(newChallenges);
+    }
+    
+    if (newChallenges.length === 0) return;
+
+    const randomChallenge = newChallenges[Math.floor(Math.random() * newChallenges.length)];
+    setCurrentChallenge(randomChallenge); // 塞入獨立狀態
+  };
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white">
       <div className="w-12 h-12 border-4 border-[#bad32d] border-t-transparent rounded-full animate-spin"></div>
@@ -311,16 +335,25 @@ function App() {
                 ← 返回
               </button>
             ) : (
-              // 點擊使用者名稱開啟設定
-              <button 
-                onClick={() => setShowSettings(true)}
-                className="group flex flex-col items-start"
-              >
-                <h2 className="w-[10ch] text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center" style={{ color: theme.dark }}>
-                  <span className="truncate">{userData?.name || "用戶"}</span>
-                  <span>⚙️</span>
-                </h2>
-              </button>
+              <>
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="group flex flex-col items-start"
+                  >
+                  <h2 className="w-[10ch] text-xl font-black truncate cursor-pointer bg-white/80 px-2 rounded-lg border-2 border-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center" style={{ color: theme.dark }}>
+                    <span className="truncate">{userData?.name || "用戶"}</span>
+                    <span>⚙️</span>
+                  </h2>
+                </button>
+
+                <button
+                  onClick={drawChallenge}
+                  className="mt-1 cursor-pointer bg-[#ff5252] border-2 border-black px-3 py-1.5 rounded-xl font-black text-xs text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1 group"
+                  >
+                  <span className="text-sm group-hover:animate-bounce">⚡</span>
+                  <span>智慧考驗來臨</span>
+                </button>
+              </>
             )}
           </div>
 
@@ -455,11 +488,39 @@ function App() {
           </div>
         )}
         {showFriendList && (
-          <FriendList currentUser={userData} setUserData={setUserData} onVisit={(t) => { setViewingUser(t); setShowFriendList(false); }} onClose={() => setShowFriendList(false)} />
+          <FriendList
+            currentUser={userData}
+            setUserData={setUserData}
+            onVisit={(t) => { setViewingUser(t); setShowFriendList(false); }}
+            onClose={() => setShowFriendList(false)}
+          />
         )}
-        {showEvents && <EventModal events={events} onClose={() => setShowEvents(false)} />}
-        {showAchievementList && <AchievementList titleConfig={titleConfig} earnedBadges={userData.badges || []} onClose={() => setShowAchievementList(false)} />}
-        {unlockedBadgeName && <BadgeUnlockModal badgeName={unlockedBadgeName} onClose={() => setUnlockedBadgeName(null)} />}
+        {showEvents && (
+          <EventModal
+            events={events}
+            onClose={() => setShowEvents(false)}
+          />
+        )}
+        {showAchievementList && (
+          <AchievementList
+            titleConfig={titleConfig}
+            earnedBadges={userData.badges || []}
+            onClose={() => setShowAchievementList(false)}
+          />
+        )}
+        {unlockedBadgeName && (
+          <BadgeUnlockModal
+            badgeName={unlockedBadgeName}
+            onClose={() => setUnlockedBadgeName(null)}
+          />
+        )}
+        {currentChallenge && (
+          <ChallengeModal 
+            challenge={currentChallenge}
+            onDraw={drawChallenge}
+            onClose={() => setCurrentChallenge(null)}
+          />
+        )}
       </div>
     </div>
   );
