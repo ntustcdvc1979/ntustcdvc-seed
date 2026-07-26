@@ -3,6 +3,7 @@ import { theme } from '../styles/theme';
 
 // 解析連結的 function
 const renderDescription = (text) => {
+  if (typeof text !== 'string' || !text) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.split(urlRegex).map((part, i) => {
     if (part.match(urlRegex)) {

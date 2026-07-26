@@ -17,7 +17,7 @@ export default function CollectionModal({ collection, favorite, allQuotes, onClo
         await updateDoc(userRef, { favorite: arrayRemove(quoteId) });
         setUserData(prev => ({
           ...prev,
-          favorite: prev.favorite.filter(id => id !== quoteId)
+          favorite: (prev.favorite || []).filter(id => id !== quoteId)
         }));
       } else {
         await updateDoc(userRef, { favorite: arrayUnion(quoteId) });

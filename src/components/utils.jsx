@@ -3,6 +3,7 @@ import { godText } from '../assets/AssetManager';
 
 export const renderContent = (text) => {
   const keyword = "<中>";
+    if (typeof text !== 'string') return text ?? '';
     if (!text.includes(keyword)) return text;
 
     // 使用 split 將字串分割，並在關鍵字處插入圖片

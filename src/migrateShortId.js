@@ -1,3 +1,7 @@
+/**
+ * 一次性的資料遷移腳本：替沒有 shortId 的舊帳號補上 shortId。
+ * 只在需要時手動 import 並呼叫 migrateUserShortIds()，不要讓它自動執行。
+ */
 import { db } from './firebase-config.js'; // 確保路徑正確
 import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
 
@@ -36,5 +40,3 @@ export const migrateUserShortIds = async () => {
     alert("更新失敗，請查看控制台報錯。");
   }
 };
-
-migrateUserShortIds()

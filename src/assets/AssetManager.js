@@ -9,8 +9,8 @@ import childImg from './child.webp'
 import guardImg from './guard.webp'
 import schoolImg from './school.webp'
 
-import mainLogo from './NewLogo.png';
-import smallLogo from './small.png';
+import mainLogo from './NewLogo.webp';
+import smallLogo from './small.webp';
 
 import godImg from './god.webp'
 

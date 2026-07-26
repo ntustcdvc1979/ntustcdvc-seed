@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase-config';
-import { collection, query, where, getDocs, limit, doc, setDoc, arrayUnion, arrayRemove, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, setDoc, arrayUnion, arrayRemove, orderBy, documentId } from 'firebase/firestore';
+
+// Firestore 的 "in" 查詢一次最多只能帶 30 個值，追蹤人數超過就要分批查
+const IN_QUERY_LIMIT = 30;
+
+const chunk = (list, size) => {
+  const result = [];
+  for (let i = 0; i < list.length; i += size) result.push(list.slice(i, i + size));
+  return result;
+};
 
 export default function FriendList({ currentUser, onVisit, onClose, setUserData }) {
   const [searchInput, setSearchInput] = useState('');
@@ -10,46 +19,48 @@ export default function FriendList({ currentUser, onVisit, onClose, setUserData 
 
   // 核心邏輯：初始化載入資料
   useEffect(() => {
+    let isMounted = true;
+
     const initListData = async () => {
       setLoading(true);
       try {
-        // 1. 載入已追蹤名單
+        // 1. 載入已追蹤名單（分批查詢，避開 "in" 的 30 筆上限）
         let followedDocs = [];
-        if (currentUser?.following && currentUser.following.length > 0) {
-          const qFollow = query(
-            collection(db, 'users'), 
-            where("__name__", "in", currentUser.following)
+        const following = currentUser?.following || [];
+        if (following.length > 0) {
+          const snapshots = await Promise.all(
+            chunk(following, IN_QUERY_LIMIT).map(ids =>
+              getDocs(query(collection(db, 'users'), where(documentId(), 'in', ids)))
+            )
           );
-          const snapFollow = await getDocs(qFollow);
-          followedDocs = snapFollow.docs.map(d => ({ uid: d.id, ...d.data() }));
-          // 按等級排序
-          followedDocs.sort((a, b) => (b.exp || 0) - (a.exp || 0));
+          followedDocs = snapshots
+            .flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() })))
+            .sort((a, b) => (b.exp || 0) - (a.exp || 0)); // 按等級排序
         }
+        if (!isMounted) return;
         setFollowingList(followedDocs);
 
         // 2. 載入前 20 名等級最高玩家
         const qTop = query(collection(db, 'users'), orderBy("exp", "desc"), limit(20));
         const snapTop = await getDocs(qTop);
-        const topDocs = snapTop.docs
-          .map(d => ({ uid: d.id, ...d.data() }))
-          .slice(0, 20); // 取前20名
-        
-        setTopPlayers(topDocs);
+        if (!isMounted) return;
+        setTopPlayers(snapTop.docs.map(d => ({ uid: d.id, ...d.data() })));
       } catch (err) {
         console.error("初始化資料失敗:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     initListData();
+    return () => { isMounted = false; };
   }, [currentUser?.following]); // 當追蹤名單異動時重新整理
 
-  // 搜尋邏輯：針對現有資料進行前端過濾
+  // 搜尋邏輯：針對現有資料進行前端過濾（部分舊資料沒有 name 欄位，要防呆）
   const getFilteredList = (list) => {
-    return list.filter(u => 
-      u.name.toLowerCase().includes(searchInput.toLowerCase())
-    );
+    const keyword = searchInput.trim().toLowerCase();
+    if (!keyword) return list;
+    return list.filter(u => (u.name || '').toLowerCase().includes(keyword));
   };
 
   const toggleFollow = async (targetUser) => {
@@ -143,7 +154,7 @@ function UserCard({ player, isFollowing, toggleFollow, onVisit }) {
   return (
     <div className="p-3 border-2 border-black rounded-2xl flex justify-between items-center bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
       <div className="flex flex-col ml-1">
-        <p className="font-black text-sm truncate max-w-[120px]">{player.name} {isMe && "(你)"}</p>
+        <p className="font-black text-sm truncate max-w-[120px]">{player.name || "未知用戶"} {isMe && "(你)"}</p>
         <span className="text-sm font-bold text-[#bad32d]">LV.{level}</span>
       </div>
       <div className="flex gap-2">

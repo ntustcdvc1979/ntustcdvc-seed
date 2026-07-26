@@ -1,5 +1,4 @@
 import React from 'react';
-import { BadgeImages } from '../assets/AssetManager';
 import Badge from './Badge.jsx'
 import { theme } from '../styles/theme';
 

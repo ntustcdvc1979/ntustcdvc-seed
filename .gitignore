@@ -153,3 +153,8 @@ serviceAccount.json
 firebase-config.js
 events*.txt
 quotes*.txt
+# 內容來源檔（自行放置，不進版控）
+challenges*.txt
+
+# Claude Code 本機設定
+.claude/

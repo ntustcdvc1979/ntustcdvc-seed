@@ -3,6 +3,22 @@ export const isMorningTime = () => {
   return hour >= 5 && hour < 8;
 };
 
+/** 今天的日期字串（本地時區，YYYY-MM-DD）。固定格式，不會隨裝置語系改變。 */
+export const getTodayKey = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+/**
+ * 判斷資料庫存的簽到日期是不是今天。
+ * 舊資料存的是 toLocaleDateString()，格式會隨裝置語系跑掉，這裡一併相容。
+ */
+export const isTodayCheckIn = (lastCheckIn) => {
+  if (!lastCheckIn) return false;
+  return lastCheckIn === getTodayKey() || lastCheckIn === new Date().toLocaleDateString();
+};
+
 export const getTitleConfig = (userData) => [
   // { 
   //   name: "筆耕福田", 
