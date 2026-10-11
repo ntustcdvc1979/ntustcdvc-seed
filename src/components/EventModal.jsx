@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../styles/theme';
 import { getTodayKey } from '../utils/gameLogic';
+import { compareEvents, isActiveEvent } from '../utils/events';
 
 // 解析連結的 function
 const renderDescription = (text) => {
@@ -23,11 +24,8 @@ export default function EventModal({ events, onClose }) {
   // 用本地日期；toISOString() 是 UTC，在台灣會讓活動晚 8 小時才下架
   const today = getTodayKey();
 
-  // 過濾邏輯：若 endDate 存在且小於今天，則過濾掉
-  const activeEvents = events.filter(ev => {
-    if (!ev.endDate) return true; // 如果沒有設定期限，預設為顯示
-    return ev.endDate >= today;
-  });
+  // 過濾掉已過期的活動，並依後台設定的順序排列
+  const activeEvents = events.filter(ev => isActiveEvent(ev, today)).sort(compareEvents);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 z-[100] animate-in fade-in duration-300">

@@ -6,6 +6,7 @@
  * clearAiHistory  清除自己的歷史紀錄
  * saveEvent       管理員新增 / 修改近期活動
  * deleteEvent     管理員刪除近期活動
+ * reorderEvents   管理員調整近期活動的顯示順序
  *
  * 前端用 httpsCallable 呼叫。Gemini API 金鑰只存在 Firebase Secret Manager（GEMINI_API_KEY），
  * 不會出現在前端程式碼或 git 裡。歷史紀錄放在 ai_chats/{uid}/messages，Firestore 規則沒有開放這個
@@ -246,10 +247,15 @@ export const saveEvent = onCall(async (request) => {
     return { id };
   }
 
+  // 新活動排在最前面：order 比目前最小的再小 1（order 越小越前面）
+  const first = await events.orderBy('order', 'asc').limit(1).get();
+  const order = (first.empty ? 0 : first.docs[0].data().order) - 1;
+
   const ref = await events.add({
     title,
     description,
     posterUrl,
+    order,
     ...(endDate ? { endDate } : {}),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -262,5 +268,27 @@ export const deleteEvent = onCall(async (request) => {
   const id = String(request.data?.id ?? '');
   if (!/^[^/]{1,1500}$/.test(id)) throw new HttpsError('invalid-argument', '活動編號不正確');
   await db.collection('events').doc(id).delete();
+  return { ok: true };
+});
+
+const MAX_REORDER = 200;
+
+/** 依照 ids 的順序重新編排活動（第一個 order = 0）；已被刪除的活動會被略過 */
+export const reorderEvents = onCall(async (request) => {
+  requireAdmin(request);
+  const ids = request.data?.ids;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_REORDER
+      || !ids.every((id) => typeof id === 'string' && /^[^/]{1,1500}$/.test(id))
+      || new Set(ids).size !== ids.length) {
+    throw new HttpsError('invalid-argument', '活動順序資料不正確');
+  }
+
+  const refs = ids.map((id) => db.collection('events').doc(id));
+  const snaps = await db.getAll(...refs);
+  const batch = db.batch();
+  snaps.forEach((snap, index) => {
+    if (snap.exists) batch.update(snap.ref, { order: index });
+  });
+  await batch.commit();
   return { ok: true };
 });

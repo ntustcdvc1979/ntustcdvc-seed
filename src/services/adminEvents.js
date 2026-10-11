@@ -3,6 +3,7 @@ import { functions } from './functions';
 
 const saveEventCallable = httpsCallable(functions, 'saveEvent');
 const deleteEventCallable = httpsCallable(functions, 'deleteEvent');
+const reorderEventsCallable = httpsCallable(functions, 'reorderEvents');
 
 /**
  * 新增（沒有 id）或修改（有 id）一個活動。
@@ -15,6 +16,11 @@ export async function saveEvent({ id, title, description, posterUrl, endDate }) 
 
 export async function deleteEvent(id) {
   await deleteEventCallable({ id });
+}
+
+/** 依照 ids 的順序儲存活動的顯示順序 */
+export async function reorderEvents(ids) {
+  await reorderEventsCallable({ ids });
 }
 
 export function describeAdminError(err) {

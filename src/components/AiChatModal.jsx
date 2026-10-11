@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { theme } from '../styles/theme';
 import { renderContent } from './utils';
 import { askQuotes, clearAiHistory, describeAiError, getAiHistory } from '../services/aiAssistant';
+import ConfirmDialog from './ConfirmDialog';
 
 const SUGGESTIONS = [
   '最近壓力好大，該怎麼調適？',
@@ -33,6 +34,7 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const bottomRef = useRef(null);
   const hasScrolledInitially = useRef(false);
 
@@ -77,14 +79,15 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
   };
 
   const handleClear = async () => {
-    if (!window.confirm('確定要清除所有萌芽解憂所的紀錄嗎？清除後無法復原。')) return;
     setClearing(true);
     try {
       await clearAiHistory();
       setMessages([]);
+      setShowClearConfirm(false);
     } catch (err) {
       console.error('清除紀錄失敗:', err);
-      window.alert('清除失敗，請稍後再試');
+      setShowClearConfirm(false);
+      setMessages((prev) => [...prev, { role: 'error', text: '清除紀錄失敗，請稍後再試', createdAt: Date.now() }]);
     } finally {
       setClearing(false);
     }
@@ -108,12 +111,12 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
         <div className="flex justify-between items-start gap-2 px-6 pt-6 pb-3 border-b-2 border-gray-100">
           <div className="min-w-0">
             <h3 className="text-xl font-black" style={{ color: theme.dark }}>🌱 萌芽解憂所</h3>
-            <p className="text-xs font-bold text-gray-400 mt-0.5">給自己一個靜心的空檔，聽聽內心的聲音，讓仙佛的智慧為你解開迷惘</p>
+            <p className="text-xs font-bold text-gray-400 mt-0.5">給自己一個靜心的空檔，聽聽內心的聲音，讓仙佛的智慧為你解憂</p>
           </div>
           <div className="flex items-center shrink-0">
             {messages.length > 0 && (
               <button
-                onClick={handleClear}
+                onClick={() => setShowClearConfirm(true)}
                 disabled={clearing || loading}
                 className="text-xs font-black text-gray-400 px-2 py-1 cursor-pointer hover:text-red-500 transition-colors disabled:opacity-40"
               >
@@ -178,8 +181,8 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
               value={input}
               onChange={(e) => setInput(e.target.value.slice(0, MAX_LENGTH))}
               onKeyDown={handleKeyDown}
-              placeholder="寫下此刻的心事，讓上天聽聽你的聲音..."
-              rows={2}
+              placeholder="寫下此刻的心事..."
+              rows={1}
               disabled={loading}
               className="flex-1 resize-none max-h-28 border-2 border-black rounded-2xl px-4 py-2.5 font-bold text-base focus:outline-none bg-gray-50 disabled:opacity-60"
             />
@@ -197,6 +200,17 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
           </p>
         </div>
       </div>
+
+      {showClearConfirm && (
+        <ConfirmDialog
+          title="確認清除？"
+          message="所有萌芽解憂所的紀錄都會被刪除，清除後無法復原。"
+          confirmLabel="確認清除"
+          busy={clearing}
+          onConfirm={handleClear}
+          onCancel={() => setShowClearConfirm(false)}
+        />
+      )}
     </div>
   );
 }
