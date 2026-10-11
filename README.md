@@ -142,13 +142,41 @@ npx firebase-tools@latest deploy --only functions
 
 ### 建立慈語索引
 
-第一次啟用，或一次上傳超過 20 則新慈語之後要跑一次（少量新增時 Cloud Function 會自己補）。
-免費額度每分鐘只能處理 100 則，500 則大約要 5~6 分鐘。PowerShell：
+第一次啟用時要跑一次。免費額度每分鐘只能處理 100 則，500 則大約要 5~6 分鐘。PowerShell：
 
 ```powershell
 cd functions
 $env:GEMINI_API_KEY="你的金鑰"; npm run build-index
 ```
+
+中斷了也沒關係，重新執行會從中斷的地方繼續；已經是最新狀態時執行也只會花幾秒。
+
+### 新增仙佛慈語
+
+和以前一樣用 `uploadQuotes.cjs` 上傳，**上傳完再跑一次 `build-index`**，它只會處理新的那幾則：
+
+```powershell
+cd src\utils
+node .\uploadQuotes.cjs
+cd ..\..\functions
+$env:GEMINI_API_KEY="你的金鑰"; npm run build-index
+```
+
+忘記跑也不會壞：20 則以內的新慈語，Cloud Function 會在 30 分鐘內自己補上；
+超過 20 則就要手動跑，否則新慈語不會被 AI 推薦（抽卡不受影響）。
+在 Firebase Console 修改或刪除慈語後跑一次，也會順便更新或清掉對應的向量。
+
+### 更換金鑰 / AI 回覆「金鑰設定有誤」
+
+```powershell
+cd functions
+$env:GEMINI_API_KEY="新的金鑰"; npm run check-key        # 先確認金鑰可用
+npx firebase-tools@latest functions:secrets:set GEMINI_API_KEY   # 貼上時不要加引號
+npx firebase-tools@latest deploy --only functions                # 一定要重新部署才會生效
+```
+
+Cloud Function 部署時會固定使用當下的金鑰版本，**只改 secret 不重新部署，Function 還是會用舊的金鑰**。
+查看錯誤紀錄：`npx firebase-tools@latest functions:log --only askQuotes`。
 
 ## 批次上傳內容
 

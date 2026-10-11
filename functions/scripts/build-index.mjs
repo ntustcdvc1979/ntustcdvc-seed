@@ -14,8 +14,9 @@ import { readFileSync } from 'node:fs';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { deleteStaleEmbeddings, fillMissingEmbeddings, loadQuoteIndex } from '../quoteIndex.js';
+import { isKeyError, normalizeApiKey } from '../rag.js';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = normalizeApiKey(process.env.GEMINI_API_KEY);
 if (!apiKey) {
   console.error('❌ 請先設定環境變數 GEMINI_API_KEY，例如：$env:GEMINI_API_KEY="你的金鑰"; npm run build-index');
   process.exit(1);
@@ -36,10 +37,20 @@ if (staleIds.length > 0) {
 if (missing.length > 0) {
   // 免費額度每分鐘只能算 100 則，碰到限制就等它恢復，所以 500 則大約要 5~6 分鐘
   console.log('⏳ 開始計算向量（免費額度每分鐘 100 則，請耐心等候）...');
-  await fillMissingEmbeddings(db, apiKey, missing, {
-    maxWaitMs: 5 * 60 * 1000,
-    onProgress: (done, total) => console.log(`   ${done} / ${total}`),
-  });
+  try {
+    await fillMissingEmbeddings(db, apiKey, missing, {
+      maxWaitMs: 5 * 60 * 1000,
+      onProgress: (done, total) => console.log(`   ${done} / ${total}`),
+    });
+  } catch (err) {
+    console.error(`\n❌ 建立索引失敗：${err.message}`);
+    if (isKeyError(err)) {
+      console.error('   金鑰無效。請先執行 npm run check-key 確認金鑰是否正確。');
+    } else {
+      console.error('   已完成的部分已經存檔，重新執行這個指令會從中斷的地方繼續。');
+    }
+    process.exit(1);
+  }
 }
 
 console.log('✅ 慈語索引已是最新狀態');

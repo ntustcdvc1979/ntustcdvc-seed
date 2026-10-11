@@ -29,6 +29,12 @@ export class GeminiError extends Error {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 去掉貼上金鑰時常見的多餘字元：前後空白、換行、包住整串的引號 */
+export const normalizeApiKey = (raw) => String(raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
+
+/** 401 / 403 代表金鑰本身有問題（打錯、已刪除、或沒有權限），重試也沒用 */
+export const isKeyError = (err) => err instanceof GeminiError && (err.status === 401 || err.status === 403);
+
 // 429 回應裡會附上建議的等待秒數（RetryInfo.retryDelay，例如 "9s"）
 const getRetryDelayMs = (json) => {
   const info = json.error?.details?.find((d) => d['@type']?.includes('RetryInfo'));

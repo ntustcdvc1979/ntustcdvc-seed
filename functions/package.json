@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build-index": "node scripts/build-index.mjs",
+    "check-key": "node scripts/check-key.mjs",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },

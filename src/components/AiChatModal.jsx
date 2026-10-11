@@ -115,7 +115,7 @@ export default function AiChatModal({ onClose }) {
             </button>
           </div>
           <p className="text-[11px] font-bold text-gray-400 mt-2 text-center leading-relaxed">
-            慈語皆為原文呈現，AI 只負責挑選。請勿輸入個人隱私資料。
+            請勿輸入個人隱私資料。
           </p>
         </div>
       </div>

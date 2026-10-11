@@ -10,7 +10,7 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
-import { GeminiError, embedTexts, pickQuotes, retrieve } from './rag.js';
+import { GeminiError, embedTexts, isKeyError, normalizeApiKey, pickQuotes, retrieve } from './rag.js';
 import { fillMissingEmbeddings, loadQuoteIndex } from './quoteIndex.js';
 
 initializeApp();
@@ -91,7 +91,7 @@ export const askQuotes = onCall(
     const userSnap = await db.collection('users').doc(uid).get();
     const isTaoQin = userSnap.data()?.isTaoQin === true;
 
-    const apiKey = GEMINI_API_KEY.value();
+    const apiKey = normalizeApiKey(GEMINI_API_KEY.value());
     try {
       const allQuotes = await getQuoteIndex(apiKey);
       const visibleQuotes = allQuotes.filter((q) => isTaoQin || q.type === 'non_Taoqin');
@@ -116,6 +116,10 @@ export const askQuotes = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error('askQuotes 失敗', { uid, error: err.message });
+      if (isKeyError(err)) {
+        logger.error('GEMINI_API_KEY 無效：請用 npm run check-key 確認金鑰後，重新執行 functions:secrets:set 並重新部署');
+        throw new HttpsError('failed-precondition', 'AI 服務的金鑰設定有誤，請通知管理員');
+      }
       if (err instanceof GeminiError && err.status === 429) {
         throw new HttpsError('resource-exhausted', '今天的 AI 額度已經用完了，明天再來吧 🙏');
       }
