@@ -1,11 +1,16 @@
 /**
- * 崇德心靈種子 — Cloud Functions
+ * 崇德心靈種子 — Cloud Functions（萌芽解憂所）
  *
- * askQuotes：慈語小助手。前端用 httpsCallable 呼叫，Gemini API 金鑰只存在
- * Firebase Secret Manager（GEMINI_API_KEY），不會出現在前端程式碼或 git 裡。
+ * askQuotes       使用者發問，用 RAG 挑出最合適的仙佛慈語，並把這次問答存進歷史紀錄
+ * getAiHistory    讀取自己的歷史紀錄
+ * clearAiHistory  清除自己的歷史紀錄
+ *
+ * 前端用 httpsCallable 呼叫。Gemini API 金鑰只存在 Firebase Secret Manager（GEMINI_API_KEY），
+ * 不會出現在前端程式碼或 git 裡。歷史紀錄放在 ai_chats/{uid}/messages，Firestore 規則沒有開放這個
+ * collection，所以前端無法直接讀寫，只能透過這裡的函式存取，而且只拿得到自己的。
  */
 import { initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
@@ -20,8 +25,6 @@ const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 
 setGlobalOptions({ region: 'asia-east1', maxInstances: 3 });
 
-// 每位使用者每天可以問幾次（Gemini 免費額度是整個專案共用的）
-const DAILY_LIMIT_PER_USER = 10;
 // 交給 Gemini 挑選的候選慈語數量
 const TOP_K = 8;
 const MAX_QUESTION_LENGTH = 300;
@@ -29,6 +32,8 @@ const MAX_QUESTION_LENGTH = 300;
 const MAX_INLINE_EMBED = 20;
 // 慈語索引在記憶體中的快取時間，過期後重新讀取（上傳新慈語後最晚這麼久會生效）
 const INDEX_TTL_MS = 30 * 60 * 1000;
+// 打開萌芽解憂所時載入最近幾筆問答
+const HISTORY_LIMIT = 50;
 
 let indexCache = null;
 
@@ -51,28 +56,17 @@ async function getQuoteIndex(apiKey) {
   return items;
 }
 
-const todayInTaipei = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+const historyRef = (uid) => db.collection('ai_chats').doc(uid).collection('messages');
 
-/** 扣一次使用額度；已用完回傳 false */
-async function consumeDailyQuota(uid) {
-  const ref = db.collection('ai_usage').doc(uid);
-  const today = todayInTaipei();
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const data = snap.data();
-    const used = data?.date === today ? data.count : 0;
-    if (used >= DAILY_LIMIT_PER_USER) return false;
-    tx.set(ref, { date: today, count: used + 1, updatedAt: FieldValue.serverTimestamp() });
-    return true;
-  });
-}
+const requireAuth = (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
+  return request.auth.uid;
+};
 
 export const askQuotes = onCall(
   { secrets: [GEMINI_API_KEY], timeoutSeconds: 60, memory: '512MiB' },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', '請先登入');
-    }
+    const uid = requireAuth(request);
 
     const question = String(request.data?.question ?? '').trim();
     if (!question) {
@@ -82,16 +76,13 @@ export const askQuotes = onCall(
       throw new HttpsError('invalid-argument', `問題請在 ${MAX_QUESTION_LENGTH} 字以內`);
     }
 
-    const uid = request.auth.uid;
-    if (!(await consumeDailyQuota(uid))) {
-      throw new HttpsError('resource-exhausted', `每天最多可以問 ${DAILY_LIMIT_PER_USER} 次，明天再來吧 🙏`);
-    }
-
     // 道親身分以資料庫為準，不相信前端傳來的值；判斷方式與前端抽慈語一致
     const userSnap = await db.collection('users').doc(uid).get();
     const isTaoQin = userSnap.data()?.isTaoQin === true;
 
     const apiKey = normalizeApiKey(GEMINI_API_KEY.value());
+    let reply;
+    let quotes;
     try {
       const allQuotes = await getQuoteIndex(apiKey);
       const visibleQuotes = allQuotes.filter((q) => isTaoQin || q.type === 'non_Taoqin');
@@ -102,17 +93,14 @@ export const askQuotes = onCall(
         throw new HttpsError('failed-precondition', '慈語索引還沒建立好，請通知管理員');
       }
 
-      const { reply, picked } = await pickQuotes(apiKey, question, candidates);
-
+      const result = await pickQuotes(apiKey, question, candidates);
+      reply = result.reply;
       // 慈語內容直接取自資料庫，一字不改地回傳
-      return {
-        reply,
-        quotes: picked.map((i) => ({
-          id: candidates[i].id,
-          content: candidates[i].content,
-          author: candidates[i].author,
-        })),
-      };
+      quotes = result.picked.map((i) => ({
+        id: candidates[i].id,
+        content: candidates[i].content,
+        author: candidates[i].author,
+      }));
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error('askQuotes 失敗', { uid, error: err.message });
@@ -121,9 +109,54 @@ export const askQuotes = onCall(
         throw new HttpsError('failed-precondition', 'AI 服務的金鑰設定有誤，請通知管理員');
       }
       if (err instanceof GeminiError && err.status === 429) {
-        throw new HttpsError('resource-exhausted', '今天的 AI 額度已經用完了，明天再來吧 🙏');
+        throw new HttpsError('resource-exhausted', '目前提問的人太多了，請稍等一分鐘再試 🙏');
       }
       throw new HttpsError('internal', 'AI 暫時無法回應，請稍後再試');
     }
+
+    // 只存慈語 id，之後讀歷史時再從資料庫取原文，確保顯示的永遠是原文
+    const createdAt = Date.now();
+    try {
+      await historyRef(uid).add({ question, reply, quoteIds: quotes.map((q) => q.id), createdAt });
+    } catch (err) {
+      // 存不進歷史不影響這次回答
+      logger.warn('儲存歷史紀錄失敗', { uid, error: err.message });
+    }
+
+    return { reply, quotes, createdAt };
   },
 );
+
+export const getAiHistory = onCall(async (request) => {
+  const uid = requireAuth(request);
+
+  const snap = await historyRef(uid).orderBy('createdAt', 'desc').limit(HISTORY_LIMIT).get();
+  const entries = snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+
+  // 一次把所有用到的慈語讀出來；已被刪除的慈語就略過
+  const quoteIds = [...new Set(entries.flatMap((e) => e.quoteIds || []))];
+  const quoteDocs = quoteIds.length
+    ? await db.getAll(...quoteIds.map((id) => db.collection('daily_quotes').doc(id)))
+    : [];
+  const quotesById = new Map(
+    quoteDocs
+      .filter((d) => d.exists)
+      .map((d) => [d.id, { id: d.id, content: d.data().content, author: d.data().author || '' }]),
+  );
+
+  return {
+    entries: entries.map((e) => ({
+      id: e.id,
+      question: e.question,
+      reply: e.reply || '',
+      quotes: (e.quoteIds || []).map((id) => quotesById.get(id)).filter(Boolean),
+      createdAt: e.createdAt,
+    })),
+  };
+});
+
+export const clearAiHistory = onCall(async (request) => {
+  const uid = requireAuth(request);
+  await db.recursiveDelete(historyRef(uid));
+  return { ok: true };
+});

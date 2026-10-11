@@ -403,6 +403,31 @@ function App() {
     updateSkillCount(skill, current - 1);
   };
 
+  // 收藏 / 取消收藏一則慈語（抽卡彈窗與萌芽解憂所共用）
+  const toggleFavorite = (quoteId) => {
+    if (!userData || !user) return;
+    const userRef = doc(db, 'users', user.uid);
+
+    if (userData.favorite?.includes(quoteId)) {
+      updateDoc(userRef, { favorite: arrayRemove(quoteId) })
+        .catch(err => console.error('取消收藏失敗:', err));
+      setUserData(prev => ({
+        ...prev,
+        favorite: (prev.favorite || []).filter(id => id !== quoteId)
+      }));
+    } else {
+      // 智慧錦囊只列出 collection 裡的慈語，所以收藏時也一併加入 collection
+      //（從萌芽解憂所收藏的慈語不一定抽到過）
+      updateDoc(userRef, { favorite: arrayUnion(quoteId), collection: arrayUnion(quoteId) })
+        .catch(err => console.error('加入收藏失敗:', err));
+      setUserData(prev => ({
+        ...prev,
+        favorite: [...(prev.favorite || []), quoteId],
+        collection: Array.from(new Set([...(prev.collection || []), quoteId]))
+      }));
+    }
+  };
+
   const drawChallenge = async () => {
     let newChallenges = allChallenges;
     if (newChallenges.length === 0) {
@@ -569,14 +594,14 @@ function App() {
                 />
               </div>
 
-              {/* AI 慈語小助手：放在領取慈語按鈕右側的角落 */}
+              {/* 萌芽解憂所（AI）：放在領取慈語按鈕右側的角落 */}
               {canUseAi && (
                 <button
                   onClick={() => setShowAiChat(true)}
-                  aria-label="慈語小助手"
+                  aria-label="萌芽解憂所"
                   className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 cursor-pointer rounded-full border-4 border-black bg-white flex flex-col items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-[calc(-50%+2px)] active:shadow-none transition-all"
                 >
-                  <span className="text-lg leading-none">✨</span>
+                  <span className="text-lg leading-none">🌱</span>
                   <span className="text-[9px] font-black leading-none mt-0.5" style={{ color: theme.dark }}>AI</span>
                 </button>
               )}
@@ -590,27 +615,8 @@ function App() {
             userData={userData}
             currentQuote={currentQuote} 
             onDraw={drawCard} 
-            onOpenCollection={(quoteId) => {
-              const isFav = userData.favorite?.includes(quoteId);
-              const userRef = doc(db, 'users', user.uid);
-              
-              if (isFav) {
-                updateDoc(userRef, { favorite: arrayRemove(quoteId) })
-                  .catch(err => console.error('取消收藏失敗:', err));
-                setUserData(prev => ({
-                  ...prev,
-                  favorite: (prev.favorite || []).filter(id => id !== quoteId)
-                }));
-              } else {
-                updateDoc(userRef, { favorite: arrayUnion(quoteId) })
-                  .catch(err => console.error('加入收藏失敗:', err));
-                setUserData(prev => ({
-                  ...prev,
-                  favorite: [...(prev.favorite || []), quoteId]
-                }));
-              }
-            }}
-            onCloseQuote={() => setCurrentQuote(null)} 
+            onOpenCollection={toggleFavorite}
+            onCloseQuote={() => setCurrentQuote(null)}
           />
         )}
 
@@ -636,10 +642,14 @@ function App() {
           />
         )}
 
-        {/* AI 慈語小助手 */}
+        {/* 萌芽解憂所（AI） */}
         {showAiChat && (
           <Suspense fallback={null}>
-            <AiChatModal onClose={() => setShowAiChat(false)} />
+            <AiChatModal
+              onClose={() => setShowAiChat(false)}
+              favorites={userData.favorite || []}
+              onToggleFavorite={toggleFavorite}
+            />
           </Suspense>
         )}
 

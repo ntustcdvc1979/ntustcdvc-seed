@@ -46,7 +46,7 @@ src/
 | `challenges` | 智慧考驗題目，欄位：`content` |
 | `events` | 活動公告，欄位：`title`、`description`、`posterUrl`、`endDate` |
 | `quote_embeddings` | AI 小助手用的慈語向量（只有 Cloud Function 能讀寫） |
-| `ai_usage` | 每位使用者當天的 AI 提問次數（只有 Cloud Function 能讀寫） |
+| `ai_chats/{uid}/messages` | 萌芽解憂所的問答紀錄，只存慈語 id（只有 Cloud Function 能讀寫） |
 
 ## 本機開發
 
@@ -108,9 +108,9 @@ https://ntustcdvc1979.github.io/ntustcdvc-seed/?openExternalBrowser=1
 
 新增管理員：在 `src/config/admin.js` 加入對方 Email 的 hash，並在 `firestore.rules` 的 `isAdmin()` 加上對方 Email。
 
-## AI 慈語小助手
+## 萌芽解憂所（AI）
 
-主畫面右下角的 ✨AI 按鈕。使用者描述煩惱，系統用 RAG 從資料庫找出最相關的仙佛慈語回覆。
+主畫面右下角的 🌱AI 按鈕。使用者描述煩惱，系統用 RAG 從資料庫找出最相關的仙佛慈語回覆。
 
 ```
 使用者提問 ──▶ Cloud Function askQuotes（asia-east1）
@@ -122,7 +122,9 @@ https://ntustcdvc1979.github.io/ntustcdvc-seed/?openExternalBrowser=1
 
 - **慈語不會被改寫**：Gemini 只回傳候選的「編號」，慈語文字一律由資料庫原文呈現
 - **金鑰不外流**：Gemini API 金鑰存在 Firebase Secret Manager，不在前端、也不在 git
-- 每位使用者每天最多問 10 次（`functions/index.js` 的 `DAILY_LIMIT_PER_USER`）
+- 沒有提問次數上限；Gemini 免費額度是全站共用的，被用完時會請使用者稍等再試
+- 問答紀錄存在伺服器，換裝置也看得到；使用者可以自己按「清除紀錄」刪除
+- 慈語卡片可以點愛心收藏，會出現在「智慧錦囊」
 - 開放範圍由 `src/config/admin.js` 的 `AI_ROLLOUT` 控制：`'admin'` 只有管理員看得到，`'all'` 全部開放
 
 ### 第一次部署

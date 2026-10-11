@@ -11,11 +11,11 @@ const ADMIN_EMAIL_SHA256 = [
 ];
 
 /**
- * AI 慈語小助手的開放範圍：
+ * 萌芽解憂所（AI）的開放範圍：
  *   'admin' — 只有管理員看得到按鈕（Cloud Function 還在測試時用）
  *   'all'   — 所有登入的使用者
  */
-export const AI_ROLLOUT = 'admin';
+export const AI_ROLLOUT = 'all';
 
 const sha256Hex = async (text) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
