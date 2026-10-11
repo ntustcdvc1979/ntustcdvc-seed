@@ -158,3 +158,10 @@ challenges*.txt
 
 # Claude Code 本機設定
 .claude/
+
+# Firestore 規則含管理員 Email，只放本機，發布時貼到 Firebase Console
+firestore.rules
+
+# Cloud Functions 本機機密（emulator 用）
+*.secret.local
+.runtimeconfig.json

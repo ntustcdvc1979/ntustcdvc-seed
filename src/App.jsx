@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import BadgeUnlockModal from './components/BadgeUnlockModal';
 import { auth, db, provider } from './firebase-config';
 import { signInWithPopup, signOut, signInWithRedirect, getRedirectResult } from 'firebase/auth';
@@ -16,6 +16,8 @@ import VisitorProfile from './components/VisitorProfile';
 import SettingsModal from './components/SettingsModal';
 import ChallengeModal from './components/ChallengeModal';
 import InAppBrowserNotice from './components/InAppBrowserNotice';
+import AdminPage from './components/AdminPage';
+import { AI_ROLLOUT, checkIsAdmin } from './config/admin';
 import { isMorningTime, getTitleConfig, getTodayKey, isTodayCheckIn } from './utils/gameLogic';
 import { detectInAppBrowser, escapeToExternalBrowser } from './utils/browserEnv';
 import { Logos } from './assets/AssetManager';
@@ -29,6 +31,12 @@ const ENABLE_CHALLENGE = false;
 
 // 標記「已經送出 redirect 登入」，導回來時用來判斷登入是否真的成功
 const REDIRECT_PENDING_KEY = 'seed:redirect-login-pending';
+
+// 管理後台的網址：https://.../ntustcdvc-seed/#/admin
+const ADMIN_ROUTE = '#/admin';
+
+// AI 小助手用到時才下載（連同 Cloud Functions SDK），不拖慢首頁載入
+const AiChatModal = lazy(() => import('./components/AiChatModal'));
 
 function App() {
   const [user, setUser] = useState(null);
@@ -51,6 +59,39 @@ function App() {
   const [currentChallenge, setCurrentChallenge] = useState(null);
   const [ignoreInAppBrowser, setIgnoreInAppBrowser] = useState(false);
   const [loginError, setLoginError] = useState(null);
+  const [showAiChat, setShowAiChat] = useState(false);
+  const [adminCheck, setAdminCheck] = useState({ uid: null, isAdmin: false });
+  const [route, setRoute] = useState(() => window.location.hash);
+
+  // null = 這個帳號還在確認中；未登入時直接當作不是管理員
+  const isAdmin = user ? (adminCheck.uid === user.uid ? adminCheck.isAdmin : null) : false;
+  const canUseAi = AI_ROLLOUT === 'all' || isAdmin === true;
+
+  useEffect(() => {
+    if (!user) return;
+    let isMounted = true;
+    checkIsAdmin(user).then((result) => {
+      if (isMounted) setAdminCheck({ uid: user.uid, isAdmin: result });
+    });
+    return () => { isMounted = false; };
+  }, [user]);
+
+  useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const openAdmin = () => {
+    setShowSettings(false);
+    window.location.hash = ADMIN_ROUTE;
+  };
+
+  const exitAdmin = () => {
+    // 清掉網址上的 #/admin，不留下多餘的 #
+    window.history.pushState(null, '', window.location.pathname + window.location.search);
+    setRoute('');
+  };
 
   const titleConfig = useMemo(() => getTitleConfig(userData), [userData]);
 
@@ -412,6 +453,8 @@ function App() {
     </div>
   );
 
+  if (route === ADMIN_ROUTE) return <AdminPage isAdmin={isAdmin} onExit={exitAdmin} />;
+
   // 已登入但使用者資料抓不到（例如連線失敗），底下的畫面會直接讀取 userData 而爆掉
   if (!userData) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-8 text-center">
@@ -516,15 +559,27 @@ function App() {
 
         <footer className="relative z-30 mt-auto pb-6 flex items-center justify-center">
           {!viewingUser && (
-            <div className="w-full flex justify-center">
+            <div className="relative w-full flex justify-center">
               <div className="w-[85%] scale-90 flex justify-center origin-center transition-all duration-300 hover:translate-y-[-4px] hover:scale-95">
                 {/* 這裡只傳入按鈕 logic */}
                 <DailyQuote
                   userData={userData}
                   currentQuote={null} // 這裡不處理彈窗展示
-                  onDraw={drawCard} 
+                  onDraw={drawCard}
                 />
               </div>
+
+              {/* AI 慈語小助手：放在領取慈語按鈕右側的角落 */}
+              {canUseAi && (
+                <button
+                  onClick={() => setShowAiChat(true)}
+                  aria-label="慈語小助手"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 cursor-pointer rounded-full border-4 border-black bg-white flex flex-col items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-[calc(-50%+2px)] active:shadow-none transition-all"
+                >
+                  <span className="text-lg leading-none">✨</span>
+                  <span className="text-[9px] font-black leading-none mt-0.5" style={{ color: theme.dark }}>AI</span>
+                </button>
+              )}
             </div>
           )}
         </footer>
@@ -575,9 +630,17 @@ function App() {
           <SettingsModal 
             userData={userData} // 傳入用戶資料
             setUserData={setUserData} // 傳入更新狀態的方法
-            onClose={() => setShowSettings(false)} 
-            onSignOut={() => signOut(auth)} 
+            onClose={() => setShowSettings(false)}
+            onSignOut={() => signOut(auth)}
+            onOpenAdmin={isAdmin ? openAdmin : null}
           />
+        )}
+
+        {/* AI 慈語小助手 */}
+        {showAiChat && (
+          <Suspense fallback={null}>
+            <AiChatModal onClose={() => setShowAiChat(false)} />
+          </Suspense>
         )}
 
         {/* --- 彈窗組件：學修講辦 --- */}

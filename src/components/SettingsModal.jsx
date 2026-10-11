@@ -4,7 +4,7 @@ import { db } from '../firebase-config';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth } from '../firebase-config';
 
-export default function SettingsModal({ onClose, onSignOut, userData, setUserData }) {
+export default function SettingsModal({ onClose, onSignOut, onOpenAdmin, userData, setUserData }) {
   const [newName, setNewName] = useState(userData?.name || "");
 
   const handleUpdateName = async () => {
@@ -69,7 +69,16 @@ export default function SettingsModal({ onClose, onSignOut, userData, setUserDat
 
           {/* 系統操作 */}
           <div className="flex flex-col gap-3">
-            <button 
+            {/* 只有管理員會收到 onOpenAdmin */}
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="w-full cursor-pointer py-4 bg-black text-white rounded-2xl font-black border-2 border-black hover:opacity-80 transition-all"
+              >
+                🛠 管理後台
+              </button>
+            )}
+            <button
               onClick={onSignOut}
               className="w-full cursor-pointer py-4 bg-red-50 text-red-600 rounded-2xl font-black border-2 border-red-200 hover:bg-red-600 hover:text-white transition-all"
             >
