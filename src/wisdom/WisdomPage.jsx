@@ -28,7 +28,7 @@ export default function WisdomPage() {
         setStatus(list.length ? 'ready' : 'error');
       })
       .catch((err) => {
-        console.error('載入慈語失敗:', err);
+        console.error('載入語錄失敗:', err);
         if (isMounted) setStatus('error');
       });
     return () => { isMounted = false; };
@@ -58,7 +58,7 @@ export default function WisdomPage() {
       <main className="w-full max-w-[420px] bg-white/95 border-4 border-black rounded-[2.5rem] px-6 py-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center text-center">
         <img src={Logos.Main} alt="崇德心靈種子" className="h-14 object-contain mb-3" />
         <h1 className="text-3xl font-black tracking-widest" style={{ color: theme.dark }}>智慧語錄</h1>
-        <p className="text-sm font-bold text-gray-500 mt-2">抽一則仙佛慈語，給此刻的自己</p>
+        <p className="text-sm font-bold text-gray-500 mt-2">心誠則靈，給此刻的自己正能量</p>
 
         <div className="w-full min-h-[220px] flex items-center justify-center my-7">
           {current ? (
@@ -70,13 +70,10 @@ export default function WisdomPage() {
               <blockquote className="text-xl font-black leading-relaxed" style={{ color: theme.dark }}>
                 「{renderContent(current.content)}」
               </blockquote>
-              <figcaption className="text-base font-black text-right mt-4" style={{ color: theme.green }}>
-                — {current.author}
-              </figcaption>
             </figure>
           ) : status === 'error' ? (
             <div className="space-y-3">
-              <p className="font-bold text-gray-500">慈語暫時載入失敗了</p>
+              <p className="font-bold text-gray-500">語錄暫時載入失敗了</p>
               <button onClick={retry} className="cursor-pointer font-black underline" style={{ color: theme.dark }}>
                 重新載入
               </button>
@@ -92,7 +89,7 @@ export default function WisdomPage() {
           className="w-full cursor-pointer rounded-[2rem] text-white font-black text-xl py-4 border-4 border-black active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 disabled:cursor-wait"
           style={{ backgroundColor: theme.yellow, boxShadow: '0 6px 0px 0px #d4a017' }}
         >
-          {status === 'loading' ? '慈語準備中...' : current ? '🔄 再抽一則' : '✨ 抽一則仙佛慈語 ✨'}
+          {status === 'loading' ? '語錄準備中...' : current ? '🔄 再抽一則' : '✨ 抽一則智慧語錄 ✨'}
         </button>
 
         <p className="text-xs font-bold text-gray-400 mt-8">台科大崇德志工社</p>
