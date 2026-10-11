@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../firebase-config';
 import { collection, query, where, getDocs, limit, doc, setDoc, arrayUnion, arrayRemove, orderBy, documentId } from 'firebase/firestore';
 
 // Firestore 的 "in" 查詢一次最多只能帶 30 個值，追蹤人數超過就要分批查
 const IN_QUERY_LIMIT = 30;
+// 關掉排行榜再打開時，這段時間內沿用剛剛讀到的資料，不必每次重讀
+const CACHE_MS = 5 * 60 * 1000;
+
+// 同一次使用網頁期間共用的快取
+const cache = {
+  top: null,          // 前 20 名
+  topAt: 0,
+  users: new Map(),   // uid → { data, at }
+};
 
 const chunk = (list, size) => {
   const result = [];
@@ -11,50 +20,61 @@ const chunk = (list, size) => {
   return result;
 };
 
+const byExp = (a, b) => (b.exp || 0) - (a.exp || 0);
+const isFresh = (at) => Date.now() - at < CACHE_MS;
+
+const rememberUsers = (players) => {
+  const now = Date.now();
+  players.forEach((p) => cache.users.set(p.uid, { data: p, at: now }));
+};
+
+async function loadTopPlayers() {
+  if (cache.top && isFresh(cache.topAt)) return cache.top;
+  const snap = await getDocs(query(collection(db, 'users'), orderBy('exp', 'desc'), limit(20)));
+  cache.top = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  cache.topAt = Date.now();
+  rememberUsers(cache.top);
+  return cache.top;
+}
+
+/** 只讀取快取裡還沒有（或太舊）的追蹤對象 */
+async function loadFollowedPlayers(ids) {
+  const missing = ids.filter((id) => !isFresh(cache.users.get(id)?.at ?? 0));
+  if (missing.length > 0) {
+    const snapshots = await Promise.all(
+      chunk(missing, IN_QUERY_LIMIT).map(batch =>
+        getDocs(query(collection(db, 'users'), where(documentId(), 'in', batch)))
+      )
+    );
+    rememberUsers(snapshots.flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() }))));
+  }
+  return ids.map((id) => cache.users.get(id)?.data).filter(Boolean).sort(byExp);
+}
+
 export default function FriendList({ currentUser, onVisit, onClose, setUserData }) {
   const [searchInput, setSearchInput] = useState('');
   const [followingList, setFollowingList] = useState([]); // 已追蹤名單
   const [topPlayers, setTopPlayers] = useState([]);       // 前20名高等級玩家
   const [loading, setLoading] = useState(true);
+  // 只在打開時讀一次；之後追蹤 / 取消追蹤直接更新畫面，不再重新讀取整份名單
+  const initialFollowing = useRef(currentUser?.following || []);
 
-  // 核心邏輯：初始化載入資料
   useEffect(() => {
     let isMounted = true;
 
-    const initListData = async () => {
-      setLoading(true);
-      try {
-        // 1. 載入已追蹤名單（分批查詢，避開 "in" 的 30 筆上限）
-        let followedDocs = [];
-        const following = currentUser?.following || [];
-        if (following.length > 0) {
-          const snapshots = await Promise.all(
-            chunk(following, IN_QUERY_LIMIT).map(ids =>
-              getDocs(query(collection(db, 'users'), where(documentId(), 'in', ids)))
-            )
-          );
-          followedDocs = snapshots
-            .flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() })))
-            .sort((a, b) => (b.exp || 0) - (a.exp || 0)); // 按等級排序
-        }
+    // 先讀前 20 名，追蹤名單裡已經在前 20 名的人就不用另外讀
+    loadTopPlayers()
+      .then(async (top) => {
+        const followed = await loadFollowedPlayers(initialFollowing.current);
         if (!isMounted) return;
-        setFollowingList(followedDocs);
+        setTopPlayers(top);
+        setFollowingList(followed);
+      })
+      .catch((err) => console.error("初始化資料失敗:", err))
+      .finally(() => { if (isMounted) setLoading(false); });
 
-        // 2. 載入前 20 名等級最高玩家
-        const qTop = query(collection(db, 'users'), orderBy("exp", "desc"), limit(20));
-        const snapTop = await getDocs(qTop);
-        if (!isMounted) return;
-        setTopPlayers(snapTop.docs.map(d => ({ uid: d.id, ...d.data() })));
-      } catch (err) {
-        console.error("初始化資料失敗:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    initListData();
     return () => { isMounted = false; };
-  }, [currentUser?.following]); // 當追蹤名單異動時重新整理
+  }, []);
 
   // 搜尋邏輯：針對現有資料進行前端過濾（部分舊資料沒有 name 欄位，要防呆）
   const getFilteredList = (list) => {
@@ -69,9 +89,14 @@ export default function FriendList({ currentUser, onVisit, onClose, setUserData 
     const isFollowing = currentUser.following?.includes(targetUser.uid);
 
     try {
-      await setDoc(userRef, { 
-        following: isFollowing ? arrayRemove(targetUser.uid) : arrayUnion(targetUser.uid) 
+      await setDoc(userRef, {
+        following: isFollowing ? arrayRemove(targetUser.uid) : arrayUnion(targetUser.uid)
       }, { merge: true });
+
+      // 手上已經有對方的資料，直接更新畫面
+      setFollowingList(prev => isFollowing
+        ? prev.filter(p => p.uid !== targetUser.uid)
+        : [...prev, targetUser].sort(byExp));
 
       if (setUserData) {
         setUserData(prev => ({

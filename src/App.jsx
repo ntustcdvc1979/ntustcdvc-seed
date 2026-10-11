@@ -17,6 +17,7 @@ import SettingsModal from './components/SettingsModal';
 import ChallengeModal from './components/ChallengeModal';
 import InAppBrowserNotice from './components/InAppBrowserNotice';
 import { AI_ROLLOUT, checkIsAdmin } from './config/admin';
+import { fetchQuotes } from './services/quotes';
 import { isMorningTime, getTitleConfig, getTodayKey, isTodayCheckIn } from './utils/gameLogic';
 import { detectInAppBrowser, escapeToExternalBrowser } from './utils/browserEnv';
 import { Logos } from './assets/AssetManager';
@@ -34,6 +35,23 @@ const REDIRECT_PENDING_KEY = 'seed:redirect-login-pending';
 // 管理後台的網址：https://.../ntustcdvc-seed/#/admin
 const ADMIN_ROUTE = '#/admin';
 
+// 近期活動讀過之後，這段時間內再打開就用同一份
+const EVENTS_CACHE_MS = 10 * 60 * 1000;
+
+/**
+ * 載入全部慈語。優先走 Cloud Function（幾乎不花讀取次數）；
+ * 萬一 Function 暫時無法使用，退回直接讀 daily_quotes，確保抽卡不會壞掉。
+ */
+async function loadAllQuotes() {
+  try {
+    return await fetchQuotes();
+  } catch (err) {
+    console.warn('從 Cloud Function 取得慈語失敗，改為直接讀取:', err);
+    const snapshot = await getDocs(collection(db, 'daily_quotes'));
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+}
+
 // AI 小助手用到時才下載（連同 Cloud Functions SDK），不拖慢首頁載入
 const AiChatModal = lazy(() => import('./components/AiChatModal'));
 // 管理後台只有管理員會用到，一般使用者不需要下載
@@ -45,6 +63,7 @@ function App() {
   const [showEvents, setShowEvents] = useState(false);
   const [currentQuote, setCurrentQuote] = useState(null);
   const [events, setEvents] = useState([]);
+  const eventsLoadedAt = useRef(0);
   const [showCollection, setShowCollection] = useState(false);
   const [allQuotes, setAllQuotes] = useState([]);
   const [unlockedBadgeName, setUnlockedBadgeName] = useState(null);
@@ -103,9 +122,15 @@ function App() {
   );
 
   const openEventModal = async () => {
+    // 同一次使用中重複打開活動，不必每次都重新讀取
+    if (Date.now() - eventsLoadedAt.current < EVENTS_CACHE_MS) {
+      setShowEvents(true);
+      return;
+    }
     try {
       const querySnapshot = await getDocs(collection(db, 'events'));
       setEvents(querySnapshot.docs.map(d => d.data()));
+      eventsLoadedAt.current = Date.now();
       setShowEvents(true);
     } catch (err) {
       console.error('載入活動失敗:', err);
@@ -200,14 +225,10 @@ function App() {
 
       let redirectSucceeded = false;
       try {
+        // 這裡只確認 redirect 有沒有成功；登入後的使用者會由下面的 onAuthStateChanged 統一處理，
+        // 以前兩邊都會讀一次使用者資料、載一次慈語，等於讀了兩倍
         const result = await getRedirectResult(auth);
-        if (result?.user) {
-          redirectSucceeded = true;
-          if (isMounted) {
-            setUser(result.user);
-            await fetchUserData(result.user.uid);
-          }
-        }
+        redirectSucceeded = Boolean(result?.user);
       } catch (err) { console.error('登入跳轉結果讀取失敗:', err); }
 
       if (!isMounted) return;
@@ -247,15 +268,17 @@ function App() {
     };
   }, []);
 
-  // 慈語與考驗題目需要登入後才讀得到，未登入時先不要送出必定失敗的請求
+  // 慈語與考驗題目需要登入後才讀得到，未登入時先不要送出必定失敗的請求。
+  // 依 uid 判斷而不是 user 物件，同一個帳號不會因為物件換了就重新載入
+  const uid = user?.uid;
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     let isMounted = true;
 
     const loadContent = async () => {
       try {
-        const snapshot = await getDocs(collection(db, 'daily_quotes'));
-        if (isMounted) setAllQuotes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        const quotes = await loadAllQuotes();
+        if (isMounted) setAllQuotes(quotes);
       } catch (err) { console.error('載入慈語失敗:', err); }
 
       if (!ENABLE_CHALLENGE) return;
@@ -267,7 +290,7 @@ function App() {
 
     loadContent();
     return () => { isMounted = false; };
-  }, [user]);
+  }, [uid]);
 
   useEffect(() => {
     if (!userData || !userData.stats || !user) return;
@@ -347,8 +370,7 @@ function App() {
     let newQuotes = allQuotes;
     if (newQuotes.length === 0) {
       try {
-        const snapshot = await getDocs(collection(db, 'daily_quotes'));
-        newQuotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        newQuotes = await loadAllQuotes();
         setAllQuotes(newQuotes);
       } catch (err) {
         console.error('載入慈語失敗:', err);

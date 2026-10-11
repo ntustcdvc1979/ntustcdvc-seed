@@ -1,26 +1,21 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './functions';
-
-const saveEventCallable = httpsCallable(functions, 'saveEvent');
-const deleteEventCallable = httpsCallable(functions, 'deleteEvent');
-const reorderEventsCallable = httpsCallable(functions, 'reorderEvents');
+import { callable } from './functions';
 
 /**
  * 新增（沒有 id）或修改（有 id）一個活動。
  * @returns {Promise<string>} 活動 id
  */
 export async function saveEvent({ id, title, description, posterUrl, endDate }) {
-  const { data } = await saveEventCallable({ id: id || null, title, description, posterUrl, endDate });
+  const { data } = await callable('saveEvent')({ id: id || null, title, description, posterUrl, endDate });
   return data.id;
 }
 
 export async function deleteEvent(id) {
-  await deleteEventCallable({ id });
+  await callable('deleteEvent')({ id });
 }
 
 /** 依照 ids 的順序儲存活動的顯示順序 */
 export async function reorderEvents(ids) {
-  await reorderEventsCallable({ ids });
+  await callable('reorderEvents')({ ids });
 }
 
 export function describeAdminError(err) {

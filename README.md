@@ -45,8 +45,9 @@ src/
 | `daily_quotes` | 仙佛慈語，欄位：`content`、`author`、`type` |
 | `challenges` | 智慧考驗題目，欄位：`content` |
 | `events` | 活動公告，欄位：`title`、`description`、`posterUrl`、`endDate` |
-| `quote_embeddings` | AI 小助手用的慈語向量（只有 Cloud Function 能讀寫） |
-| `ai_chats/{uid}/messages` | 萌芽解憂所的問答紀錄，只存慈語 id（只有 Cloud Function 能讀寫） |
+| `quote_catalog` | 慈語目錄：把全部慈語與向量打包成少數幾份文件，讀一次約 8 次讀取（只有 Cloud Function 能讀寫，由 `daily_quotes` 自動產生） |
+| `ai_chats/{uid}` | 萌芽解憂所的問答紀錄，每人一份文件，只存慈語 id（只有 Cloud Function 能讀寫） |
+| `quote_embeddings` | 舊版的慈語向量，已由 `quote_catalog` 取代；確認一切正常後可以刪除 |
 
 ## 本機開發
 
@@ -104,12 +105,32 @@ https://ntustcdvc1979.github.io/ntustcdvc-seed/?openExternalBrowser=1
 - 新增、編輯、刪除「近期活動」，可預覽前台的樣子；海報可直接貼 Google 雲端硬碟分享連結。
   活動透過 Cloud Function（`saveEvent` / `deleteEvent`）寫入並檢查管理員身分，不需要修改 Firestore 規則。
   原本的 `uploadEvents.cjs` 仍可使用
+- 「語錄 QR」分頁：智慧語錄頁的 QR Code，可下載 PNG（1024×1024）印在海報上
 - 前端只負責決定要不要顯示介面（`src/config/admin.js`，存的是管理員 Email 的 SHA-256）；
   真正阻擋非管理員修改的是 Firestore 規則
 - Firestore 規則放在專案根目錄的 `firestore.rules`。因為含有管理員 Email，**此檔不進版控**，
   修改後請到 Firebase Console → Firestore Database → 規則，貼上整份內容並發布
 
 新增管理員：在 `src/config/admin.js` 加入對方 Email 的 hash，並在 `firestore.rules` 的 `isAdmin()` 加上對方 Email。
+
+## 智慧語錄（不需登入）
+
+網址：<https://ntustcdvc1979.github.io/ntustcdvc-seed/wisdom.html>（QR Code 在管理後台的「語錄 QR」分頁）
+
+- 只有抽仙佛慈語一個功能，**不需要 Google 登入**，所以在 LINE 掃 QR Code 打開也能直接用
+- 身分等同非道親：後端（`getQuotes`）對未登入的請求只回傳一般慈語（`non_Taoqin`）
+- 獨立的進入點（`wisdom.html` → `src/wisdom/`），不載入登入與 Firestore，頁面很輕，也不花任何 Firestore 讀取次數
+
+## Firestore 讀取次數
+
+| 動作 | 現在 | 以前 |
+| --- | --- | --- |
+| 登入後載入慈語 | 0（Function 快取） | 每人每次 515 |
+| 萌芽解憂所載入索引 | 約 8 | 1,030 |
+| 打開萌芽解憂所紀錄 | 1 | 最多 50 + 150 |
+| 重複打開排行榜 / 近期活動 | 5～10 分鐘內 0 | 每次全部重讀 |
+| 排行榜按追蹤 | 0 | 整份名單重讀 |
+| 智慧語錄抽慈語 | 0 | — |
 
 ## 萌芽解憂所（AI）
 
@@ -118,7 +139,7 @@ https://ntustcdvc1979.github.io/ntustcdvc-seed/?openExternalBrowser=1
 ```
 使用者提問 ──▶ Cloud Function askQuotes（asia-east1）
                  ├─ 把問題轉成向量（gemini-embedding-2）
-                 ├─ 與 quote_embeddings 比對相似度，取前 8 則候選（非道親只會比對一般慈語）
+                 ├─ 與慈語目錄的向量比對相似度，取前 8 則候選（非道親只會比對一般慈語）
                  └─ Gemini 從候選中挑 1~3 則並寫一句引言
             ◀── 慈語原文直接取自 Firestore，一字不改
 ```
@@ -145,31 +166,27 @@ npx firebase-tools@latest deploy --only functions
 `secrets:set` 會要求你貼上金鑰，金鑰只會存進 Secret Manager。
 （電腦全域安裝的舊版 `firebase` 指令在 Node 25 會壞掉，請用上面的 `npx firebase-tools@latest`。）
 
-### 建立慈語索引
+### 新增仙佛慈語
 
-第一次啟用時要跑一次。免費額度每分鐘只能處理 100 則，500 則大約要 5~6 分鐘。PowerShell：
+和以前一樣用 `uploadQuotes.cjs` 上傳就好，**不用再跑其他指令**：
+
+```powershell
+cd src\utils
+node .\uploadQuotes.cjs
+```
+
+慈語有任何新增、修改、刪除（包含在 Firebase Console 直接改），`onQuoteWritten` 會標記「目錄需要更新」，
+`refreshQuoteCatalog` 每 10 分鐘檢查一次並重建目錄，順便替新慈語算向量（每次最多 80 則，多的下一輪繼續）。
+網站最晚約 15 分鐘就會抽得到新慈語。
+
+想讓新慈語**馬上**生效，或一次上傳了好幾百則想一次算完，可以手動重建：
 
 ```powershell
 cd functions
 $env:GEMINI_API_KEY="你的金鑰"; npm run build-index
 ```
 
-中斷了也沒關係，重新執行會從中斷的地方繼續；已經是最新狀態時執行也只會花幾秒。
-
-### 新增仙佛慈語
-
-和以前一樣用 `uploadQuotes.cjs` 上傳，**上傳完再跑一次 `build-index`**，它只會處理新的那幾則：
-
-```powershell
-cd src\utils
-node .\uploadQuotes.cjs
-cd ..\..\functions
-$env:GEMINI_API_KEY="你的金鑰"; npm run build-index
-```
-
-忘記跑也不會壞：20 則以內的新慈語，Cloud Function 會在 30 分鐘內自己補上；
-超過 20 則就要手動跑，否則新慈語不會被 AI 推薦（抽卡不受影響）。
-在 Firebase Console 修改或刪除慈語後跑一次，也會順便更新或清掉對應的向量。
+免費額度每分鐘只能算 100 則向量，500 則約 5~6 分鐘；中斷了重新執行會接著處理。
 
 ### 更換金鑰 / AI 回覆「金鑰設定有誤」
 

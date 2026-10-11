@@ -1,17 +1,14 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './functions';
+import { callable } from './functions';
 
 // 後端最多處理 60 秒，這裡多等一點，讓後端自己的錯誤訊息能傳回來
-const askQuotesCallable = httpsCallable(functions, 'askQuotes', { timeout: 70_000 });
-const getAiHistoryCallable = httpsCallable(functions, 'getAiHistory');
-const clearAiHistoryCallable = httpsCallable(functions, 'clearAiHistory');
+const ASK_TIMEOUT_MS = 70_000;
 
 /**
  * @typedef {{ id: string, content: string, author: string }} Quote
  * @returns {Promise<{ reply: string, quotes: Quote[], createdAt: number }>}
  */
 export async function askQuotes(question) {
-  const { data } = await askQuotesCallable({ question });
+  const { data } = await callable('askQuotes', { timeout: ASK_TIMEOUT_MS })({ question });
   return data;
 }
 
@@ -20,12 +17,12 @@ export async function askQuotes(question) {
  * @returns {Promise<Array<{ id: string, question: string, reply: string, quotes: Quote[], createdAt: number }>>}
  */
 export async function getAiHistory() {
-  const { data } = await getAiHistoryCallable();
+  const { data } = await callable('getAiHistory')();
   return data.entries || [];
 }
 
 export async function clearAiHistory() {
-  await clearAiHistoryCallable();
+  await callable('clearAiHistory')();
 }
 
 /** 把 Cloud Function 的錯誤轉成給使用者看的訊息 */

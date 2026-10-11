@@ -1,21 +1,26 @@
 /**
- * 崇德心靈種子 — Cloud Functions（萌芽解憂所）
+ * 崇德心靈種子 — Cloud Functions
  *
- * askQuotes       使用者發問，用 RAG 挑出最合適的仙佛慈語，並把這次問答存進歷史紀錄
- * getAiHistory    讀取自己的歷史紀錄
- * clearAiHistory  清除自己的歷史紀錄
- * saveEvent       管理員新增 / 修改近期活動
- * deleteEvent     管理員刪除近期活動
- * reorderEvents   管理員調整近期活動的顯示順序
+ * 慈語
+ *   getQuotes             取得慈語目錄。登入者拿到全部，未登入（智慧語錄頁）只拿到一般慈語
+ *   onQuoteWritten        慈語有變動時標記目錄需要更新
+ *   refreshQuoteCatalog   每 10 分鐘檢查一次，需要時重建目錄
+ * 萌芽解憂所
+ *   askQuotes             用 RAG 挑出最合適的仙佛慈語，並存進歷史紀錄
+ *   getAiHistory          讀取自己的歷史紀錄
+ *   clearAiHistory        清除自己的歷史紀錄
+ * 管理後台
+ *   saveEvent / deleteEvent / reorderEvents   近期活動
  *
- * 前端用 httpsCallable 呼叫。Gemini API 金鑰只存在 Firebase Secret Manager（GEMINI_API_KEY），
- * 不會出現在前端程式碼或 git 裡。歷史紀錄放在 ai_chats/{uid}/messages，Firestore 規則沒有開放這個
- * collection，所以前端無法直接讀寫，只能透過這裡的函式存取，而且只拿得到自己的。
+ * Gemini API 金鑰只存在 Firebase Secret Manager（GEMINI_API_KEY），不會出現在前端程式碼或 git 裡。
+ * quote_catalog、ai_chats 沒有開放給前端，只能透過這裡的函式存取。
  */
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import {
@@ -28,7 +33,7 @@ import {
   pickQuotes,
   retrieve,
 } from './rag.js';
-import { fillMissingEmbeddings, loadQuoteIndex } from './quoteIndex.js';
+import { loadCatalog, metaRef, needsRebuild, rebuildCatalog } from './catalog.js';
 import { requireAdmin } from './admin.js';
 import { parseEventInput } from './events.js';
 
@@ -37,17 +42,20 @@ const db = getFirestore();
 
 const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
 
+// Firestore 資料庫也在 asia-east1，觸發器必須跟資料庫同一區
 setGlobalOptions({ region: 'asia-east1', maxInstances: 3 });
 
 // 交給 Gemini 挑選的候選慈語數量
 const TOP_K = 8;
 const MAX_QUESTION_LENGTH = 300;
-// 少量新慈語（例如剛上傳幾則）直接在請求中補算向量；太多就要跑 npm run build-index
-const MAX_INLINE_EMBED = 20;
-// 慈語索引在記憶體中的快取時間，過期後重新讀取（上傳新慈語後最晚這麼久會生效）
-const INDEX_TTL_MS = 30 * 60 * 1000;
-// 打開萌芽解憂所時載入最近幾筆問答
+// 每隔多久確認一次目錄有沒有新版本（只讀 1 份 meta 文件）
+const CATALOG_CHECK_MS = 5 * 60 * 1000;
+// 排程重建時最多替幾則新慈語算向量；免費額度每分鐘 100 則，留一些給使用者提問
+const SCHEDULED_EMBED_LIMIT = 80;
+// 萌芽解憂所保留最近幾筆問答
 const HISTORY_LIMIT = 50;
+// 道親身分的快取時間；管理員修改後最晚這麼久生效
+const TAOQIN_CACHE_MS = 10 * 60 * 1000;
 
 // 一次提問的時間預算。Function 上限是 60 秒，前端會等到 70 秒；
 // 超過預算還沒挑好慈語，就直接回傳相似度最高的幾則，不讓使用者白等。
@@ -58,43 +66,87 @@ const PICK_TIMEOUT_MS = 30_000;
 const MIN_PICK_TIME_MS = 5_000;
 const FALLBACK_REPLY = '為你找到幾則相關的仙佛慈語，願它們陪你走過此刻。';
 
-let indexCache = null;
-let indexLoading = null;
+// ───────────── 慈語目錄 ─────────────
 
-async function loadIndex(apiKey) {
-  const { items, missing } = await loadQuoteIndex(db);
-  if (missing.length > 0 && missing.length <= MAX_INLINE_EMBED) {
-    try {
-      await fillMissingEmbeddings(db, apiKey, missing, { timeoutMs: EMBED_TIMEOUT_MS });
-    } catch (err) {
-      // 補不上也沒關係，這幾則只是暫時搜尋不到
-      logger.warn('補算慈語向量失敗', { count: missing.length, error: err.message });
+let catalog = null; // { version, quotes, byId, withVectors, checkedAt }
+let catalogLoading = null;
+
+/** 取得慈語目錄。大多數時候直接用記憶體裡的；每 5 分鐘只花 1 次讀取確認有沒有新版本 */
+function getCatalog() {
+  if (catalog && Date.now() - catalog.checkedAt < CATALOG_CHECK_MS) return Promise.resolve(catalog);
+
+  // 同時有好幾個請求時共用同一次讀取
+  catalogLoading ??= (async () => {
+    let meta = (await metaRef(db).get()).data();
+    if (!meta?.version) {
+      // 第一次使用：直接從 daily_quotes 建立（沿用舊版向量，不需要金鑰）
+      logger.info('慈語目錄不存在，開始建立');
+      await rebuildCatalog(db, null, { maxEmbed: 0 });
+      meta = (await metaRef(db).get()).data();
     }
-  } else if (missing.length > MAX_INLINE_EMBED) {
-    logger.warn(`有 ${missing.length} 則慈語還沒有向量，請在 functions 目錄執行 npm run build-index`);
-  }
+    if (catalog?.version === meta.version) {
+      catalog.checkedAt = Date.now();
+    } else {
+      catalog = { ...(await loadCatalog(db, meta)), checkedAt: Date.now() };
+    }
+    return catalog;
+  })().finally(() => { catalogLoading = null; });
 
-  indexCache = { loadedAt: Date.now(), items };
-  return items;
+  return catalogLoading;
 }
 
-async function getQuoteIndex(apiKey) {
-  if (indexCache && Date.now() - indexCache.loadedAt < INDEX_TTL_MS) return indexCache.items;
-  // 同時有好幾個人提問時，共用同一次讀取，不要各自讀一遍
-  indexLoading ??= loadIndex(apiKey).finally(() => { indexLoading = null; });
-  return indexLoading;
-}
+const toPublicQuote = ({ id, content, author, type }) => ({ id, content, author, type });
 
-/** Gemini 太慢或太忙時，改用相似度最高的幾則，至少讓使用者拿到慈語 */
-const shouldFallback = (err) =>
-  err instanceof GeminiError && (err.status === TIMEOUT_STATUS || err.status === 429 || err.status >= 500);
+export const getQuotes = onCall(async (request) => {
+  const { quotes } = await getCatalog();
+  // 智慧語錄頁不需要登入，只提供一般慈語（等同非道親）
+  const visible = request.auth ? quotes : quotes.filter((q) => q.type === 'non_Taoqin');
+  return { quotes: visible.map(toPublicQuote) };
+});
 
-const historyRef = (uid) => db.collection('ai_chats').doc(uid).collection('messages');
+/** 慈語被新增、修改或刪除時，只標記「需要更新」，由排程統一重建，避免大量上傳時重建好幾百次 */
+export const onQuoteWritten = onDocumentWritten('daily_quotes/{quoteId}', async () => {
+  await metaRef(db).set({ dirtyAt: Date.now() }, { merge: true });
+});
+
+export const refreshQuoteCatalog = onSchedule(
+  { schedule: 'every 10 minutes', secrets: [GEMINI_API_KEY], timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    const meta = (await metaRef(db).get()).data();
+    if (!needsRebuild(meta)) return;
+
+    const result = await rebuildCatalog(db, normalizeApiKey(GEMINI_API_KEY.value()), {
+      maxEmbed: SCHEDULED_EMBED_LIMIT,
+      maxWaitMs: 60_000,
+    });
+    logger.info('慈語目錄已重建', result);
+  },
+);
+
+// ───────────── 萌芽解憂所 ─────────────
+
+const chatRef = (uid) => db.collection('ai_chats').doc(uid);
+const legacyHistoryRef = (uid) => chatRef(uid).collection('messages');
 
 const requireAuth = (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', '請先登入');
   return request.auth.uid;
 };
+
+const taoQinCache = new Map(); // uid → { value, at }
+
+/** 道親身分以資料庫為準，不相信前端傳來的值；判斷方式與前端抽慈語一致 */
+async function isTaoQinUser(uid) {
+  const cached = taoQinCache.get(uid);
+  if (cached && Date.now() - cached.at < TAOQIN_CACHE_MS) return cached.value;
+  const value = (await db.collection('users').doc(uid).get()).data()?.isTaoQin === true;
+  taoQinCache.set(uid, { value, at: Date.now() });
+  return value;
+}
+
+/** Gemini 太慢或太忙時，改用相似度最高的幾則，至少讓使用者拿到慈語 */
+const shouldFallback = (err) =>
+  err instanceof GeminiError && (err.status === TIMEOUT_STATUS || err.status === 429 || err.status >= 500);
 
 export const askQuotes = onCall(
   { secrets: [GEMINI_API_KEY], timeoutSeconds: 60, memory: '512MiB' },
@@ -109,21 +161,15 @@ export const askQuotes = onCall(
       throw new HttpsError('invalid-argument', `問題請在 ${MAX_QUESTION_LENGTH} 字以內`);
     }
 
-    // 道親身分以資料庫為準，不相信前端傳來的值；判斷方式與前端抽慈語一致
-    const userSnap = await db.collection('users').doc(uid).get();
-    const isTaoQin = userSnap.data()?.isTaoQin === true;
-
     const apiKey = normalizeApiKey(GEMINI_API_KEY.value());
     const startedAt = Date.now();
     const timing = {};
     let reply;
     let quotes;
     try {
-      const wasCached = Boolean(indexCache && Date.now() - indexCache.loadedAt < INDEX_TTL_MS);
-      const allQuotes = await getQuoteIndex(apiKey);
-      timing.indexMs = Date.now() - startedAt;
-      timing.indexCached = wasCached;
-      const visibleQuotes = allQuotes.filter((q) => isTaoQin || q.type === 'non_Taoqin');
+      const [{ withVectors }, isTaoQin] = await Promise.all([getCatalog(), isTaoQinUser(uid)]);
+      timing.catalogMs = Date.now() - startedAt;
+      const visibleQuotes = withVectors.filter((q) => isTaoQin || q.type === 'non_Taoqin');
 
       let t = Date.now();
       const [queryVector] = await embedTexts(apiKey, [question], 'RETRIEVAL_QUERY', {
@@ -157,11 +203,7 @@ export const askQuotes = onCall(
       timing.pickMs = Date.now() - t;
 
       // 慈語內容直接取自資料庫，一字不改地回傳
-      quotes = picked.map((i) => ({
-        id: candidates[i].id,
-        content: candidates[i].content,
-        author: candidates[i].author,
-      }));
+      quotes = picked.map((i) => toPublicQuote(candidates[i]));
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error('askQuotes 失敗', { uid, error: err.message });
@@ -178,10 +220,13 @@ export const askQuotes = onCall(
     // 各步驟花了多久，回答變慢時看紀錄就知道卡在哪裡（npm run logs）
     logger.info('askQuotes 完成', { ...timing, totalMs: Date.now() - startedAt });
 
-    // 只存慈語 id，之後讀歷史時再從資料庫取原文，確保顯示的永遠是原文
+    // 每位使用者的紀錄放在同一份文件；arrayUnion 直接附加，不需要先讀取。
+    // 只存慈語 id，之後讀歷史時再從目錄取原文，確保顯示的永遠是原文
     const createdAt = Date.now();
     try {
-      await historyRef(uid).add({ question, reply, quoteIds: quotes.map((q) => q.id), createdAt });
+      await chatRef(uid).set({
+        entries: FieldValue.arrayUnion({ question, reply, quoteIds: quotes.map((q) => q.id), createdAt }),
+      }, { merge: true });
     } catch (err) {
       // 存不進歷史不影響這次回答
       logger.warn('儲存歷史紀錄失敗', { uid, error: err.message });
@@ -193,27 +238,38 @@ export const askQuotes = onCall(
 
 export const getAiHistory = onCall(async (request) => {
   const uid = requireAuth(request);
+  const [snap, { byId }] = await Promise.all([chatRef(uid).get(), getCatalog()]);
+  const data = snap.data();
+  let entries = data?.entries || [];
+  let needsWrite = false;
 
-  const snap = await historyRef(uid).orderBy('createdAt', 'desc').limit(HISTORY_LIMIT).get();
-  const entries = snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse();
+  // 舊版每筆問答一份文件；第一次讀取時搬進同一份文件，之後打開只要讀 1 次
+  if (!data?.migrated) {
+    const legacy = await legacyHistoryRef(uid).orderBy('createdAt', 'desc').limit(HISTORY_LIMIT).get();
+    if (!legacy.empty) {
+      entries = [...legacy.docs.map((d) => {
+        const { question, reply, quoteIds, createdAt } = d.data();
+        return { question, reply: reply || '', quoteIds: quoteIds || [], createdAt };
+      }), ...entries];
+      await db.recursiveDelete(legacyHistoryRef(uid));
+    }
+    needsWrite = true;
+  }
 
-  // 一次把所有用到的慈語讀出來；已被刪除的慈語就略過
-  const quoteIds = [...new Set(entries.flatMap((e) => e.quoteIds || []))];
-  const quoteDocs = quoteIds.length
-    ? await db.getAll(...quoteIds.map((id) => db.collection('daily_quotes').doc(id)))
-    : [];
-  const quotesById = new Map(
-    quoteDocs
-      .filter((d) => d.exists)
-      .map((d) => [d.id, { id: d.id, content: d.data().content, author: d.data().author || '' }]),
-  );
+  entries.sort((a, b) => a.createdAt - b.createdAt);
+  if (entries.length > HISTORY_LIMIT) {
+    entries = entries.slice(-HISTORY_LIMIT);
+    needsWrite = true;
+  }
+  if (needsWrite) await chatRef(uid).set({ entries, migrated: true }, { merge: true });
 
   return {
     entries: entries.map((e) => ({
-      id: e.id,
+      id: String(e.createdAt),
       question: e.question,
       reply: e.reply || '',
-      quotes: (e.quoteIds || []).map((id) => quotesById.get(id)).filter(Boolean),
+      // 已被刪除的慈語就略過
+      quotes: (e.quoteIds || []).map((id) => byId.get(id)).filter(Boolean).map(toPublicQuote),
       createdAt: e.createdAt,
     })),
   };
@@ -221,12 +277,17 @@ export const getAiHistory = onCall(async (request) => {
 
 export const clearAiHistory = onCall(async (request) => {
   const uid = requireAuth(request);
-  await db.recursiveDelete(historyRef(uid));
+  // 連同舊版的子集合一起刪除
+  await db.recursiveDelete(chatRef(uid));
+  await chatRef(uid).set({ entries: [], migrated: true });
   return { ok: true };
 });
 
 // ───────────── 管理後台：近期活動 ─────────────
 // 活動的 Firestore 規則是「前端不可寫」，所以由這裡用 Admin SDK 寫入，並檢查是不是管理員。
+
+// Firestore 的 NOT_FOUND 錯誤代碼
+const FIRESTORE_NOT_FOUND = 5;
 
 export const saveEvent = onCall(async (request) => {
   requireAdmin(request);
@@ -234,16 +295,20 @@ export const saveEvent = onCall(async (request) => {
   const events = db.collection('events');
 
   if (id) {
-    const ref = events.doc(id);
-    if (!(await ref.get()).exists) throw new HttpsError('not-found', '找不到這個活動，可能已經被刪除了');
-    await ref.update({
-      title,
-      description,
-      posterUrl,
-      // 清空結束日期 = 一直顯示，所以要把欄位整個拿掉
-      endDate: endDate || FieldValue.delete(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    try {
+      // update 遇到不存在的文件會直接失敗，不必先讀一次確認
+      await events.doc(id).update({
+        title,
+        description,
+        posterUrl,
+        // 清空結束日期 = 一直顯示，所以要把欄位整個拿掉
+        endDate: endDate || FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      if (err.code === FIRESTORE_NOT_FOUND) throw new HttpsError('not-found', '找不到這個活動，可能已經被刪除了');
+      throw err;
+    }
     return { id };
   }
 

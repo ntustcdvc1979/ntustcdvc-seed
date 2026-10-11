@@ -1,8 +1,10 @@
 /**
- * 建立 / 更新慈語向量索引（quote_embeddings）。
+ * 立刻重建慈語目錄（quote_catalog），並替所有新慈語計算向量。
  *
- * 什麼時候要跑：第一次啟用 AI 小助手時，以及一次上傳超過 20 則新慈語之後。
- * 少量新增時 Cloud Function 會自己補，不需要手動跑。
+ * 平常不需要跑：慈語有變動時，Cloud Function 會在 10 分鐘內自動重建，
+ * 每次最多替 80 則新慈語算向量。只有下面兩種情況才需要手動跑：
+ *   - 想讓剛上傳的慈語「馬上」生效
+ *   - 一次上傳了好幾百則，想一次算完（免費額度每分鐘 100 則，500 則約 5~6 分鐘）
  *
  * 用法（PowerShell，在 functions 目錄下）：
  *   $env:GEMINI_API_KEY="你的金鑰"; npm run build-index
@@ -13,8 +15,8 @@
 import { readFileSync } from 'node:fs';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { deleteStaleEmbeddings, fillMissingEmbeddings, loadQuoteIndex } from '../quoteIndex.js';
-import { isKeyError, normalizeApiKey } from '../rag.js';
+import { rebuildCatalog } from '../catalog.js';
+import { normalizeApiKey } from '../rag.js';
 
 const apiKey = normalizeApiKey(process.env.GEMINI_API_KEY);
 if (!apiKey) {
@@ -26,32 +28,17 @@ const serviceAccountUrl = new URL('../../src/utils/serviceAccount.json', import.
 initializeApp({ credential: cert(JSON.parse(readFileSync(serviceAccountUrl, 'utf8'))) });
 const db = getFirestore();
 
-const { items, missing, staleIds } = await loadQuoteIndex(db);
-console.log(`📚 共 ${items.length} 則慈語，需要計算向量：${missing.length} 則，需要清除的舊向量：${staleIds.length} 筆`);
+console.log('⏳ 重建慈語目錄中（有新慈語時，免費額度每分鐘只能算 100 則，請耐心等候）...');
+const result = await rebuildCatalog(db, apiKey, {
+  maxWaitMs: 5 * 60 * 1000,
+  onProgress: (done, total) => console.log(`   向量 ${done} / ${total}`),
+});
 
-if (staleIds.length > 0) {
-  await deleteStaleEmbeddings(db, staleIds);
-  console.log(`🧹 已清除 ${staleIds.length} 筆舊向量`);
+console.log(`📚 共 ${result.quoteCount} 則慈語，這次新算了 ${result.embedded} 則向量`);
+if (result.missing > 0) {
+  console.error(`❌ 還有 ${result.missing} 則沒有向量（可能是金鑰無效或額度用完），請先執行 npm run check-key 確認金鑰。`);
+  console.error('   已完成的部分已經存檔，重新執行會接著處理。');
+  process.exit(1);
 }
-
-if (missing.length > 0) {
-  // 免費額度每分鐘只能算 100 則，碰到限制就等它恢復，所以 500 則大約要 5~6 分鐘
-  console.log('⏳ 開始計算向量（免費額度每分鐘 100 則，請耐心等候）...');
-  try {
-    await fillMissingEmbeddings(db, apiKey, missing, {
-      maxWaitMs: 5 * 60 * 1000,
-      onProgress: (done, total) => console.log(`   ${done} / ${total}`),
-    });
-  } catch (err) {
-    console.error(`\n❌ 建立索引失敗：${err.message}`);
-    if (isKeyError(err)) {
-      console.error('   金鑰無效。請先執行 npm run check-key 確認金鑰是否正確。');
-    } else {
-      console.error('   已完成的部分已經存檔，重新執行這個指令會從中斷的地方繼續。');
-    }
-    process.exit(1);
-  }
-}
-
-console.log('✅ 慈語索引已是最新狀態');
+console.log('✅ 慈語目錄已是最新狀態，網站會在 5 分鐘內載入新版本');
 process.exit(0);

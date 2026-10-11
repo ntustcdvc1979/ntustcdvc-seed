@@ -3,6 +3,7 @@ import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { theme } from '../styles/theme';
 import AdminEvents from './AdminEvents';
+import AdminQrCode from './AdminQrCode';
 
 const FILTERS = [
   { id: 'all', label: '全部' },
@@ -44,8 +45,9 @@ export default function AdminPage({ isAdmin, onExit }) {
 }
 
 const TABS = [
-  { id: 'taoqin', label: '👥 道親身分' },
-  { id: 'events', label: '📅 近期活動' },
+  { id: 'taoqin', label: '👥 道親', Component: TaoQinManager },
+  { id: 'events', label: '📅 活動', Component: AdminEvents },
+  { id: 'qrcode', label: '📱 語錄 QR', Component: AdminQrCode },
 ];
 
 function AdminConsole({ onExit }) {
@@ -77,7 +79,12 @@ function AdminConsole({ onExit }) {
         </div>
 
         <div className="bg-white border-4 border-black rounded-[2rem] p-5 sm:p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col">
-          {tab === 'taoqin' ? <TaoQinManager /> : <AdminEvents />}
+          {/* 切換分頁時只隱藏、不卸載，回到原分頁不必重新讀取資料 */}
+          {TABS.map((t) => (
+            <div key={t.id} className={tab === t.id ? '' : 'hidden'}>
+              <t.Component />
+            </div>
+          ))}
         </div>
       </div>
     </div>
