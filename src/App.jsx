@@ -16,7 +16,6 @@ import VisitorProfile from './components/VisitorProfile';
 import SettingsModal from './components/SettingsModal';
 import ChallengeModal from './components/ChallengeModal';
 import InAppBrowserNotice from './components/InAppBrowserNotice';
-import AdminPage from './components/AdminPage';
 import { AI_ROLLOUT, checkIsAdmin } from './config/admin';
 import { isMorningTime, getTitleConfig, getTodayKey, isTodayCheckIn } from './utils/gameLogic';
 import { detectInAppBrowser, escapeToExternalBrowser } from './utils/browserEnv';
@@ -37,6 +36,8 @@ const ADMIN_ROUTE = '#/admin';
 
 // AI 小助手用到時才下載（連同 Cloud Functions SDK），不拖慢首頁載入
 const AiChatModal = lazy(() => import('./components/AiChatModal'));
+// 管理後台只有管理員會用到，一般使用者不需要下載
+const AdminPage = lazy(() => import('./components/AdminPage'));
 
 function App() {
   const [user, setUser] = useState(null);
@@ -478,7 +479,11 @@ function App() {
     </div>
   );
 
-  if (route === ADMIN_ROUTE) return <AdminPage isAdmin={isAdmin} onExit={exitAdmin} />;
+  if (route === ADMIN_ROUTE) return (
+    <Suspense fallback={<div className="min-h-screen bg-[#fffdf5]" />}>
+      <AdminPage isAdmin={isAdmin} onExit={exitAdmin} />
+    </Suspense>
+  );
 
   // 已登入但使用者資料抓不到（例如連線失敗），底下的畫面會直接讀取 userData 而爆掉
   if (!userData) return (

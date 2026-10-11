@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase-config';
 import { theme } from '../styles/theme';
+import AdminEvents from './AdminEvents';
 
 const FILTERS = [
   { id: 'all', label: '全部' },
@@ -42,7 +43,48 @@ export default function AdminPage({ isAdmin, onExit }) {
   return <AdminConsole onExit={onExit} />;
 }
 
+const TABS = [
+  { id: 'taoqin', label: '👥 道親身分' },
+  { id: 'events', label: '📅 近期活動' },
+];
+
 function AdminConsole({ onExit }) {
+  const [tab, setTab] = useState('taoqin');
+
+  return (
+    <div className="min-h-screen w-full bg-[#fffdf5] flex justify-center p-4 sm:p-6">
+      <div className="w-full max-w-[600px] flex flex-col">
+        <header className="flex justify-between items-center mb-5">
+          <h1 className="text-2xl font-black" style={{ color: theme.dark }}>🛠 管理後台</h1>
+          <button
+            onClick={onExit}
+            className="cursor-pointer bg-white border-2 border-black px-4 py-1.5 rounded-full font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all"
+          >
+            ← 回到種子
+          </button>
+        </header>
+
+        <div className="flex gap-2 mb-4">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 cursor-pointer py-2.5 rounded-2xl border-2 border-black font-black text-sm transition-all ${tab === t.id ? 'bg-black text-white' : 'bg-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="bg-white border-4 border-black rounded-[2rem] p-5 sm:p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col">
+          {tab === 'taoqin' ? <TaoQinManager /> : <AdminEvents />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaoQinManager() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -104,65 +146,51 @@ function AdminConsole({ onExit }) {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#fffdf5] flex justify-center p-4 sm:p-6">
-      <div className="w-full max-w-[600px] flex flex-col">
-        <header className="flex justify-between items-center mb-5">
-          <h1 className="text-2xl font-black" style={{ color: theme.dark }}>🛠 管理後台</h1>
+    <>
+      <h2 className="text-lg font-black mb-1" style={{ color: theme.dark }}>道親身分管理</h2>
+      <p className="text-xs font-bold text-gray-400 mb-4">
+        非道親只會抽到一般慈語；修改後，對方下次開啟網頁時生效。
+      </p>
+
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="搜尋名字或 Email..."
+        className="w-full border-2 border-black rounded-2xl px-4 py-2.5 font-black text-base focus:outline-none bg-gray-50 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] mb-4"
+      />
+
+      <div className="flex gap-2 mb-4">
+        {FILTERS.map((f) => (
           <button
-            onClick={onExit}
-            className="cursor-pointer bg-white border-2 border-black px-4 py-1.5 rounded-full font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-none transition-all"
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={`cursor-pointer px-3 py-1.5 rounded-full border-2 border-black font-black text-sm transition-all ${filter === f.id ? 'bg-black text-white' : 'bg-white'}`}
           >
-            ← 回到種子
+            {f.label} {counts[f.id]}
           </button>
-        </header>
-
-        <div className="bg-white border-4 border-black rounded-[2rem] p-5 sm:p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col">
-          <h2 className="text-lg font-black mb-1" style={{ color: theme.dark }}>道親身分管理</h2>
-          <p className="text-xs font-bold text-gray-400 mb-4">
-            非道親只會抽到一般慈語；修改後，對方下次開啟網頁時生效。
-          </p>
-
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜尋名字或 Email..."
-            className="w-full border-2 border-black rounded-2xl px-4 py-2.5 font-black text-base focus:outline-none bg-gray-50 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] mb-4"
-          />
-
-          <div className="flex gap-2 mb-4">
-            {FILTERS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`cursor-pointer px-3 py-1.5 rounded-full border-2 border-black font-black text-sm transition-all ${filter === f.id ? 'bg-black text-white' : 'bg-white'}`}
-              >
-                {f.label} {counts[f.id]}
-              </button>
-            ))}
-          </div>
-
-          {saveError && (
-            <p className="mb-4 text-sm font-bold text-red-600 bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-2.5">
-              {saveError}
-            </p>
-          )}
-
-          {loading ? (
-            <p className="text-center py-10 font-bold text-gray-400 animate-pulse">載入使用者中...</p>
-          ) : loadError ? (
-            <p className="text-center py-10 font-bold text-red-600">{loadError}</p>
-          ) : visibleUsers.length === 0 ? (
-            <p className="text-center py-10 font-bold text-gray-400 italic">無相符結果</p>
-          ) : (
-            <ul className="space-y-3">
-              {visibleUsers.map((u) => (
-                <UserRow key={u.uid} user={u} saving={savingUid === u.uid} onToggle={() => toggleTaoQin(u)} />
-              ))}
-            </ul>
-          )}
-        </div>
+        ))}
       </div>
-    </div>
+
+      {saveError && (
+        <p className="mb-4 text-sm font-bold text-red-600 bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-2.5">
+          {saveError}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="text-center py-10 font-bold text-gray-400 animate-pulse">載入使用者中...</p>
+      ) : loadError ? (
+        <p className="text-center py-10 font-bold text-red-600">{loadError}</p>
+      ) : visibleUsers.length === 0 ? (
+        <p className="text-center py-10 font-bold text-gray-400 italic">無相符結果</p>
+      ) : (
+        <ul className="space-y-3">
+          {visibleUsers.map((u) => (
+            <UserRow key={u.uid} user={u} saving={savingUid === u.uid} onToggle={() => toggleTaoQin(u)} />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

@@ -55,14 +55,14 @@ export async function loadQuoteIndex(db) {
 }
 
 /** 替缺少向量的慈語算向量並寫回（會直接填入 item.vector） */
-export async function fillMissingEmbeddings(db, apiKey, missing, { maxWaitMs = 0, onProgress } = {}) {
+export async function fillMissingEmbeddings(db, apiKey, missing, { maxWaitMs = 0, timeoutMs, onProgress } = {}) {
   for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
     const chunk = missing.slice(i, i + CHUNK_SIZE);
     const vectors = await embedTexts(
       apiKey,
       chunk.map((item) => toPlainText(item.content)),
       'RETRIEVAL_DOCUMENT',
-      { maxWaitMs },
+      { maxWaitMs, timeoutMs },
     );
 
     const batch = db.batch();

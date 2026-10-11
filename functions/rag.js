@@ -35,6 +35,9 @@ export const normalizeApiKey = (raw) => String(raw ?? '').trim().replace(/^["']+
 /** 401 / 403 代表金鑰本身有問題（打錯、已刪除、或沒有權限），重試也沒用 */
 export const isKeyError = (err) => err instanceof GeminiError && (err.status === 401 || err.status === 403);
 
+// 自訂的狀態碼：在 timeoutMs 內沒有回應
+export const TIMEOUT_STATUS = 504;
+
 // 429 回應裡會附上建議的等待秒數（RetryInfo.retryDelay，例如 "9s"）
 const getRetryDelayMs = (json) => {
   const info = json.error?.details?.find((d) => d['@type']?.includes('RetryInfo'));
@@ -45,21 +48,34 @@ const getRetryDelayMs = (json) => {
 /**
  * @param {object} [options]
  * @param {number} [options.maxWaitMs] 碰到 429 / 503 時最多願意等多久；0 代表不等、直接丟錯
+ * @param {number} [options.timeoutMs] 整個呼叫（含重試）最多花多久，超過就丟出 TIMEOUT_STATUS
  */
-async function callGemini(apiKey, path, body, { maxWaitMs = 0 } = {}) {
+async function callGemini(apiKey, path, body, { maxWaitMs = 0, timeoutMs = Infinity } = {}) {
+  const deadline = Date.now() + timeoutMs;
   let waited = 0;
   for (;;) {
-    const res = await fetch(`${API_BASE}/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json().catch(() => ({}));
+    let res;
+    let json;
+    try {
+      const remaining = deadline - Date.now();
+      res = await fetch(`${API_BASE}/${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(body),
+        signal: Number.isFinite(remaining) ? AbortSignal.timeout(Math.max(remaining, 1)) : undefined,
+      });
+      json = await res.json().catch(() => ({}));
+    } catch (err) {
+      if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+        throw new GeminiError(TIMEOUT_STATUS, `${Math.round(timeoutMs / 1000)} 秒內沒有回應`);
+      }
+      throw err;
+    }
     if (res.ok) return json;
 
     const retryable = res.status === 429 || res.status === 503;
     const delay = getRetryDelayMs(json) ?? 5000;
-    if (!retryable || waited + delay > maxWaitMs) {
+    if (!retryable || waited + delay > maxWaitMs || Date.now() + delay >= deadline) {
       throw new GeminiError(res.status, json.error?.message || res.statusText);
     }
     await sleep(delay);
@@ -91,10 +107,11 @@ export const toPlainText = (content) => String(content || '').replaceAll('<中>'
  * @param {'RETRIEVAL_DOCUMENT'|'RETRIEVAL_QUERY'} taskType
  * @param {object} [options]
  * @param {number} [options.maxWaitMs] 碰到額度限制時最多等多久
+ * @param {number} [options.timeoutMs] 每一批最多花多久
  * @param {(done: number, total: number) => void} [options.onProgress]
  * @returns {Promise<number[][]>} 已正規化的向量
  */
-export async function embedTexts(apiKey, texts, taskType, { maxWaitMs = 0, onProgress } = {}) {
+export async function embedTexts(apiKey, texts, taskType, { maxWaitMs = 0, timeoutMs, onProgress } = {}) {
   const vectors = [];
   for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
@@ -105,7 +122,7 @@ export async function embedTexts(apiKey, texts, taskType, { maxWaitMs = 0, onPro
         taskType,
         outputDimensionality: EMBED_DIM,
       })),
-    }, { maxWaitMs });
+    }, { maxWaitMs, timeoutMs });
     vectors.push(...json.embeddings.map((e) => normalize(e.values)));
     onProgress?.(vectors.length, texts.length);
   }
@@ -121,7 +138,7 @@ export function retrieve(queryVector, items, k) {
     .slice(0, k);
 }
 
-const SYSTEM_INSTRUCTION = `你是「崇德心靈種子」App 裡的慈語小助手。
+const SYSTEM_INSTRUCTION = `你是「崇德心靈種子」App 裡「萌芽解憂所」的慈語小助手。
 使用者會提出生活、情緒、人際或修身上的問題，系統會附上從資料庫檢索出的「候選仙佛慈語」，每則前面有編號。
 
 你的任務：
@@ -145,18 +162,28 @@ const RESPONSE_SCHEMA = {
   required: ['reply', 'quoteIndexes'],
 };
 
-const MAX_PICKED = 3;
+export const MAX_PICKED = 3;
+
+// 挑慈語是很單純的選擇題，不需要深度思考；Gemini 3 系列預設會想很久，這是變慢的主因。
+// 如果模型不支援這個設定（回 400），會自動拿掉再試一次，之後也不再送。
+const THINKING_CONFIG = { thinkingLevel: 'minimal' };
+let thinkingConfigSupported = true;
+
+const isThinkingConfigRejected = (err) =>
+  err instanceof GeminiError && err.status === 400 && /thinking/i.test(err.message);
 
 /**
  * @param {Array<{content: string, author: string}>} candidates retrieve() 的結果
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs] 最多等多久，超過丟出 TIMEOUT_STATUS
  * @returns {Promise<{reply: string, picked: number[]}>} picked 是 candidates 的索引（0 起算）
  */
-export async function pickQuotes(apiKey, question, candidates) {
+export async function pickQuotes(apiKey, question, candidates, { timeoutMs } = {}) {
   const candidateText = candidates
     .map((c, i) => `[${i + 1}] ${toPlainText(c.content)} —— ${c.author || '佚名'}`)
     .join('\n');
 
-  const json = await callGemini(apiKey, `models/${CHAT_MODEL}:generateContent`, {
+  const request = (withThinkingConfig) => callGemini(apiKey, `models/${CHAT_MODEL}:generateContent`, {
     systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
     contents: [{
       role: 'user',
@@ -166,8 +193,19 @@ export async function pickQuotes(apiKey, question, candidates) {
       temperature: 0.4,
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,
+      ...(withThinkingConfig ? { thinkingConfig: THINKING_CONFIG } : {}),
     },
-  }, { maxWaitMs: 10_000 });
+  }, { maxWaitMs: 10_000, timeoutMs });
+
+  let json;
+  try {
+    json = await request(thinkingConfigSupported);
+  } catch (err) {
+    if (!thinkingConfigSupported || !isThinkingConfigRejected(err)) throw err;
+    console.warn(`${CHAT_MODEL} 不支援 thinkingConfig，改用預設設定：${err.message}`);
+    thinkingConfigSupported = false;
+    json = await request(false);
+  }
 
   const text = json.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
   let parsed;

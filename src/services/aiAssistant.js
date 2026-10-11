@@ -1,11 +1,8 @@
-import { getApp } from 'firebase/app';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-// 確保預設的 Firebase app 已經初始化
-import '../firebase-config';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './functions';
 
-// 必須和 functions/index.js 的 region 一致
-const functions = getFunctions(getApp(), 'asia-east1');
-const askQuotesCallable = httpsCallable(functions, 'askQuotes', { timeout: 60_000 });
+// 後端最多處理 60 秒，這裡多等一點，讓後端自己的錯誤訊息能傳回來
+const askQuotesCallable = httpsCallable(functions, 'askQuotes', { timeout: 70_000 });
 const getAiHistoryCallable = httpsCallable(functions, 'getAiHistory');
 const clearAiHistoryCallable = httpsCallable(functions, 'clearAiHistory');
 

@@ -165,7 +165,7 @@ export default function AiChatModal({ onClose, favorites, onToggleFavorite }) {
 
           {loading && (
             <div className="flex items-center gap-2 text-sm font-black text-gray-400 animate-pulse">
-              <span>📖</span> 翻閱慈語中...
+              <span>📖</span> 尋找解憂慈語中...
             </div>
           )}
           <div ref={bottomRef} />

@@ -101,6 +101,9 @@ https://ntustcdvc1979.github.io/ntustcdvc-seed/?openExternalBrowser=1
 網址：<https://ntustcdvc1979.github.io/ntustcdvc-seed/#/admin>（管理員登入後，也可以從「⚙️ 設定」裡的「🛠 管理後台」進入）
 
 - 依名字或 Email 搜尋使用者，切換「道親 / 非道親」（`isTaoQin`）
+- 新增、編輯、刪除「近期活動」，可預覽前台的樣子；海報可直接貼 Google 雲端硬碟分享連結。
+  活動透過 Cloud Function（`saveEvent` / `deleteEvent`）寫入並檢查管理員身分，不需要修改 Firestore 規則。
+  原本的 `uploadEvents.cjs` 仍可使用
 - 前端只負責決定要不要顯示介面（`src/config/admin.js`，存的是管理員 Email 的 SHA-256）；
   真正阻擋非管理員修改的是 Firestore 規則
 - Firestore 規則放在專案根目錄的 `firestore.rules`。因為含有管理員 Email，**此檔不進版控**，

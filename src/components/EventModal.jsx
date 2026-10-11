@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../styles/theme';
+import { getTodayKey } from '../utils/gameLogic';
 
 // 解析連結的 function
 const renderDescription = (text) => {
@@ -19,7 +20,8 @@ const renderDescription = (text) => {
 };
 
 export default function EventModal({ events, onClose }) {
-  const today = new Date().toISOString().split('T')[0];
+  // 用本地日期；toISOString() 是 UTC，在台灣會讓活動晚 8 小時才下架
+  const today = getTodayKey();
 
   // 過濾邏輯：若 endDate 存在且小於今天，則過濾掉
   const activeEvents = events.filter(ev => {
